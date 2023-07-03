@@ -44,7 +44,7 @@ class DG4202Detector:
                 except pyvisa.errors.VisaIOError:
                     pass
 
-        print("No DG4202 device found.")
+        print("[DG4202] No DG4202 device found.")
         return None
 
 
