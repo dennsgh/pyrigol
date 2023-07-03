@@ -1,14 +1,9 @@
 from flask import Flask, request, jsonify
-from flask.wrappers import Response
 import pyvisa
 import abc
 import re
 from typing import Optional, Union, List, Tuple
-from werkzeug.exceptions import HTTPException
 from werkzeug.serving import make_server
-from threading import Thread
-import os
-import signal
 
 
 class DG4202Detector:
@@ -44,8 +39,6 @@ class DG4202Detector:
                         return DG4202(DG4202USB(resource))
                 except pyvisa.errors.VisaIOError:
                     pass
-
-        print("[DG4202] No DG4202 device found.")
         return None
 
 
@@ -321,7 +314,6 @@ class DG4202:
             if _ is None:
                 # this is purely to simulate when in hardware mock to disconnect the device (i.e. when sending via the API flask server simulate_kill 'kill' : 'true' (look at notebooks))
                 return False
-            print(f"Received identity: {_}")
             return True
         except:
             return False

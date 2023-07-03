@@ -11,6 +11,13 @@ from callbacks import main_callbacks
 from threading import Barrier
 from werkzeug.serving import make_server
 
+# At the top of the script:
+import time
+from datetime import timedelta
+
+import os
+import signal
+
 
 def get_sidebar_layout(current_page):
     common_sidebar_elements = [
@@ -94,36 +101,53 @@ def create_app(args_dict):
                 ),
                 id="collapse",
             ),
-            dbc.Collapse(dbc.Button())
+            dbc.Collapse(dbc.Button()),
+            html.Div(id="app-uptime"),
+            html.Div(id="device-uptime"),
         ],
         id="sidebar",
     )
 
     content = html.Div(id="page-content", className="mt-4")
 
-    app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
+    app.layout = html.Div([
+        dcc.Location(id="url"),
+        sidebar,
+        content,
+        dcc.Interval(
+            id='global-ticker',
+            interval=1 * 1000,  # in milliseconds
+            n_intervals=0)
+    ])
 
     main_callbacks(app, args_dict, pages)
 
     return app
 
 
-def run_dash_application(app, args_dict):
+def run_dash_application(app, args_dict, stop_event):
     waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
 
 
-def run_flask_app(app, host, port):
+def run_flask_app(app, host, port, stop_event):
     flask_server = make_server(host, port, app.server)
     flask_server.serve_forever()
 
 
-def run_api_server(dg4202_interface, server_port):
+def run_api_server(dg4202_interface, server_port, stop_event):
     # Your function to start the API server
     api = DG4202APIServer(dg4202_interface=dg4202_interface, server_port=server_port)
     api.run()
 
 
+def signal_handler(sig, frame):
+    print('Interrupt signal received. Shutting down...')
+    os._exit(0)
+
+
 def run_application():
+
+    stop_event = threading.Event()
     parser = argparse.ArgumentParser(description="Run the pyrigol application.")
     parser.add_argument('--hardware-mock',
                         action='store_true',
@@ -151,35 +175,31 @@ def run_application():
     args_dict = vars(args)
     print(args_dict)
     app = create_app(args_dict)
-    try:
-        if args_dict.get('env') == 'production':
-            waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
-        else:
-            threads = []
-            # Start the Flask app in one thread
-            print(f"Running Dash Application at http://localhost:{args_dict['port']}")
-            flask_thread = threading.Thread(target=run_dash_application, args=(app, args_dict))
-            flask_thread.daemon = True
-            threads.append(flask_thread)
-            flask_thread.start()
-            if args_dict.get("api_server"):
-                print(f"Running DG4202 API server at http://localhost:{args_dict['api_server']}.")
+    if args_dict.get('env') == 'production':
+        waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
+    else:
+        threads = []
+        # Start the Flask app in one thread
+        print(f"Running Dash Application at http://localhost:{args_dict['port']}")
+        flask_thread = threading.Thread(target=run_dash_application,
+                                        args=(app, args_dict, stop_event))
+        #flask_thread.daemon = True
+        threads.append(flask_thread)
+        flask_thread.start()
+        if args_dict.get("api_server"):
+            print(f"Running DG4202 API server at http://localhost:{args_dict['api_server']}.")
 
-                # TODO create callback for interface refresh
-                # Start the API server in another thread
-                api_thread = threading.Thread(target=run_api_server,
-                                              args=(factory.create_dg4202(args_dict).interface,
-                                                    args_dict['api_server']))
-                api_thread.daemon = True
-                threads.append(api_thread)
-                api_thread.start()
+            # TODO create callback for interface refresh
+            # Start the API server in another thread
+            api_thread = threading.Thread(target=run_api_server,
+                                          args=(factory.create_dg4202(args_dict).interface,
+                                                args_dict['api_server'], stop_event))
+            #api_thread.daemon = True
+            threads.append(api_thread)
+            api_thread.start()
 
-            # Join the threads
-            #flask_thread.join()
-            #api_thread.join()
-    except KeyboardInterrupt:
-        print("Exit signal detected.")
 
+# set up signal handler
 
 if __name__ == "__main__":
     run_application()

@@ -1,19 +1,19 @@
-from pages.templates import BasePage, ParameterException
-import plotly.graph_objs as go
-import pandas as pd
+from pages.templates import BasePage
 import dash_bootstrap_components as dbc
 import dash
 import functools
+import time
 from dash.dependencies import Input, Output, State
 from dash import dcc, html
 from pages import factory
 from device.dg4202 import DG4202
 from pages import factory, plotter
-from threading import Thread
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
+from dash.exceptions import PreventUpdate
 
 NOT_FOUND_STRING = 'Device not found!'
+TIMER_INTERVAL = 100.  # in ms
+TIMER_INTERVAL_S = TIMER_INTERVAL / 1000.  # in ms
 
 
 def create_dropdown(id: str, label: str, options: list, default_value=None) -> dbc.Row:
@@ -79,28 +79,45 @@ def create_button(id: str, label: str) -> dbc.Button:
 
 
 class DashboardPage(BasePage):
+    ticker = dcc.Interval(
+        id='interval-component',
+        interval=1 * TIMER_INTERVAL,  # in milliseconds, e.g. every 5 seconds
+        n_intervals=0)
     channel_count = 2
+    link_channel = False
     # This dictionary will indirectly control the content based on mode
     all_parameters = {}
-    error_layout = [
+    error_layout = html.Div([
         dbc.Col([
-            html.H1("No Devices Found!"),
+            html.H1("Connection Error"),
             html.H2("", id='connect-fail-dummy'),
+            ticker,
             create_button(id=f"connect-rigol", label=f"Detect"),
         ])
-    ]
-    main_layout = []
+    ],
+                            id='error-layout')
+    content = []
 
     def __init__(self, *args, **kwargs):
         # might be unnecessary
         super().__init__(*args, **kwargs)
 
     def check_connection(self) -> bool:
+
         if self.my_generator is not None:
-            check = self.my_generator.is_connection_alive()
-            if not check:
+            is_alive = self.my_generator.is_connection_alive()
+
+            if not is_alive:
+                factory.last_known_device_uptime = None
                 self.my_generator = None
-            return check
+            # device is alive.
+            # transition from dead to alive None -> time
+            if factory.last_known_device_uptime is None:
+                factory.last_known_device_uptime = time.time()
+            return is_alive
+        # connection is dead from here
+        factory.last_known_device_uptime = None
+
         return False
 
     def get_all_parameters(self) -> bool:
@@ -140,13 +157,21 @@ class DashboardPage(BasePage):
 
     def layout(self) -> html.Div:
         # Initialize variables
+
         self.my_generator = factory.create_dg4202(self.args_dict)
         self.channel_layouts = {}  # The static layouts (contains layout variables)
         self.mode_layouts = {}  # The dynamic switchable currently on layouts
-        self.main_layout = []  # layout shown on page
+        self.content = []  # layout shown on page
+
+        self.default_logic = [
+            html.Div(id='dynamic-content'),
+            html.Div(id='layout-update-trigger', style={'display': 'none'})
+        ]
+
         #initialize variable
         is_connected = self.get_all_parameters()
-        self.main_layout.append(html.Div(id="dynamic-controls"))
+        self.content.append(html.Div(id="dynamic-controls"))
+        self.content.append(self.ticker)
         # Check for modes and other initial setup
         for channel in range(1, self.channel_count + 1):
             # per channel layouts
@@ -162,29 +187,30 @@ class DashboardPage(BasePage):
 
         for channel in range(1, self.channel_count + 1):
             # per channel layouts
-            self.main_layout.append(html.Div(id=f"channel-status-{channel}"))
-            self.main_layout.append(
+            self.content.append(html.Div(id=f"channel-status-{channel}"))
+            self.content.append(html.Div(id=f"debug-{channel}"))
+            self.content.append(
                 create_dropdown(id=f"mode-dropdown-{channel}",
                                 label=f"Mode CH{channel}",
                                 options=["off", "sweep", "burst", "mod"],
                                 default_value=self.all_parameters[f"{channel}"]["mode"]["mode"]))
-            self.main_layout.append(
+            self.content.append(
                 create_button(id=f"set-mode-{channel}", label=f"Set Mode CH{channel}"))
             # This is the channel content that will change depending on the mode set!
             self.mode_layouts[f"{channel}"] = html.Div(self.channel_layouts[f"{channel}"][
                 self.all_parameters[f"{channel}"]["mode"]["mode"]],
                                                        id=f"channel-content-{channel}")
 
-            self.main_layout.append(self.mode_layouts[f"{channel}"])
-
-            final_layout = html.Div(dbc.Container(
-                [
-                    html.H1("Dashlab", className="my-4"),
-                ] + self.main_layout if is_connected else self.error_layout,
-                fluid=True,
-            ),
-                                    id='dynamic-screen')
-        return final_layout
+            self.content.append(self.mode_layouts[f"{channel}"])
+            # we have to store this
+            self.final_layout = html.Div(
+                dbc.Container(
+                    [
+                        html.H1("Dashlab", className="my-4"),
+                    ] + self.content if is_connected else self.error_layout,
+                    fluid=True,
+                ))
+        return self.final_layout
 
     def generate_sweep_control(self, channel: int) -> dbc.Col:
         """
@@ -280,6 +306,12 @@ class DashboardPage(BasePage):
         Register the callbacks for updating the content based on user interactions.
         """
 
+        @self.app.callback(Output('dynamic-content', 'children'),
+                           Input('layout-update-trigger', 'children'))
+        def update(new_layout):
+            self.update_layout(new_layout)
+            return new_layout
+
         def update_mode_content(channel: int, n_clicks: int, mode: str):
             """
             Update the mode content based on the selected mode.
@@ -308,7 +340,7 @@ class DashboardPage(BasePage):
                     else:
                         return dash.no_update
             else:
-                self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
+                # self.update_layout(new_layout=self.error_layout)
                 return dash.no_update
 
         #################################################################
@@ -362,33 +394,27 @@ class DashboardPage(BasePage):
                 tuple: A tuple containing the status string and the waveform plot figure.
             """
             status_string = f"{channel}"
+            print("UPDATE_WAVEFORM")
+            if self.get_all_parameters():
+                frequency = float(frequency) if frequency else float(
+                    self.all_parameters[f"{channel}"]["waveform"]["frequency"])
+                amplitude = float(amplitude) if amplitude else float(
+                    self.all_parameters[f"{channel}"]["waveform"]["amplitude"])
+                offset = float(offset) if offset else float(
+                    self.all_parameters[f"{channel}"]["waveform"]["offset"])
+                waveform_type = str(waveform_type) if waveform_type else str(
+                    self.all_parameters[f"{channel}"]["waveform"]["waveform_type"])
 
-            try:
-                if not self.get_all_parameters():
-                    self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
-                    return NOT_FOUND_STRING, dash.no_update
-            except ParameterException as e:
-                print(f"An error occurred: {e}")
-                self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
+                # If a parameter is not set, pass the current value
+                self.my_generator.set_waveform(channel, waveform_type, frequency, amplitude, offset)
+                status_string = f"Waveform updated. Current device status: {self.my_generator.get_status(channel)}"
 
+                figure = plotter.plot_waveform(waveform_type, frequency, amplitude, offset)
+
+                return status_string, figure
+            else:
+                self.update_layout(new_layout=self.error_layout)
                 return NOT_FOUND_STRING, dash.no_update
-
-            frequency = float(frequency) if frequency else float(
-                self.all_parameters[f"{channel}"]["waveform"]["frequency"])
-            amplitude = float(amplitude) if amplitude else float(
-                self.all_parameters[f"{channel}"]["waveform"]["amplitude"])
-            offset = float(offset) if offset else float(
-                self.all_parameters[f"{channel}"]["waveform"]["offset"])
-            waveform_type = str(waveform_type) if waveform_type else str(
-                self.all_parameters[f"{channel}"]["waveform"]["waveform_type"])
-
-            # If a parameter is not set, pass the current value
-            self.my_generator.set_waveform(channel, waveform_type, frequency, amplitude, offset)
-            status_string = f"Waveform updated. Current device status: {self.my_generator.get_status(channel)}"
-
-            figure = plotter.plot_waveform(waveform_type, frequency, amplitude, offset)
-
-            return status_string, figure
 
         # calls the individual functionality
         def update_channel(channel: int, n_clicks_waveform: int, n_clicks_on: int,
@@ -410,31 +436,26 @@ class DashboardPage(BasePage):
             Returns:
                 tuple: A tuple containing the updated status string and waveform plot figure.
             """
-            try:
-                if not self.get_all_parameters():
-                    self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
-                    return NOT_FOUND_STRING, dash.no_update
-            except ParameterException as e:
-                print(f"An error occurred: {e}")
-                self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
+            if self.get_all_parameters():
+                self.update_layout(self.final_layout)
+                ctx = dash.callback_context
+                if not ctx.triggered:
+                    return dash.no_update, dash.no_update
+                else:
+                    input_id = ctx.triggered[0]["prop_id"].split(".")[0]
+                    if input_id == f"set-waveform-{channel}":
+                        return update_waveform(channel, n_clicks_waveform, waveform_type,
+                                               waveform_freq, waveform_ampl, waveform_off)
+                    elif input_id == f"output-on-{channel}":
+                        return update_status_on_click(channel, n_clicks_on), dash.no_update
+                    elif input_id == f"output-off-{channel}":
+                        return update_status_off_click(channel, n_clicks_off), dash.no_update
+            else:
+                self.update_layout(self.error_layout)
+                print(f"update_channel {self.all_parameters}")
                 return NOT_FOUND_STRING, dash.no_update
 
-            ctx = dash.callback_context
-            if not ctx.triggered:
-                return dash.no_update, dash.no_update
-            else:
-                input_id = ctx.triggered[0]["prop_id"].split(".")[0]
-                if input_id == f"set-waveform-{channel}":
-                    return update_waveform(channel, n_clicks_waveform, waveform_type, waveform_freq,
-                                           waveform_ampl, waveform_off)
-                elif input_id == f"output-on-{channel}":
-                    return update_status_on_click(channel, n_clicks_on), dash.no_update
-                elif input_id == f"output-off-{channel}":
-                    return update_status_off_click(channel, n_clicks_off), dash.no_update
-
-        # Here we declare the callbacks from the defined function above we use functools to split per channel control (partial functions)
-
-        for channel in range(1, 3):  # Assuming we have two channels
+        for channel in range(1, self.channel_count + 1):  # Assuming we have two channels
             self.app.callback(
                 Output(f"channel-status-{channel}", "children"),
                 Output(f"waveform-plot-{channel}", "figure"),
@@ -453,6 +474,19 @@ class DashboardPage(BasePage):
                 State(f"mode-dropdown-{channel}", "value"),
             )(functools.partial(update_mode_content, channel))
 
+        # Callback
+
+        @self.app.callback(Output('layout-update-trigger', 'children'),
+                           Input('interval-component', 'n_intervals'))
+        def ticker(n):
+            if self.get_all_parameters():
+                print("alive")
+                self.update_layout(self.final_layout)
+                return self.final_layout
+            else:
+                self.update_layout(self.error_layout)
+                return self.error_layout
+
         @self.app.callback(
             Output("connect-fail-dummy", "children"),
             Input("connect-rigol", "n_clicks"),
@@ -470,16 +504,11 @@ class DashboardPage(BasePage):
 
             if self.reconnect():
                 print("Reconnected.")
-                self.page_layout = html.Div(dbc.Container(
-                    [
-                        html.H1("Dashlab", className="my-4"),
-                    ] + self.main_layout,
-                    fluid=True,
-                ),
-                                            id='dynamic-screen')
-                return [""]
+                # do not modify page_layout directly
+                self.update_layout(self.final_layout)
+                return ["Device found. Please refresh the page."]
             else:
-                self.main_layout = html.Div(self.error_layout, id='dynamic-screen')
+                self.update_layout(self.error_layout)
                 return [f"Check the connection. [{datetime.now().isoformat()}]"]
 
     def reconnect(self):

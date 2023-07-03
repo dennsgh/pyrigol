@@ -37,6 +37,10 @@ class DG4202APIServer:
                 Response: a Flask response.
             """
             command = request.json.get('command')
+            if isinstance(self.dg4202_interface, DG4202MockInterface):
+                if self.dg4202_interface.killed:
+                    return jsonify({'error': f'{command} failed.'}), 400
+
             if command is None:
                 return jsonify({'error': f'{command} failed.'}), 400
             self.dg4202_interface.write(command)
@@ -57,7 +61,7 @@ class DG4202APIServer:
                         self.dg4202_interface.simulate_kill(True)
                         return jsonify({'status': f'{kill} sent'}), 200
                     elif kill == 'false':
-                        self.dg4202_interface.simulate_kill(True)
+                        self.dg4202_interface.simulate_kill(False)
                         return jsonify({'status': f'{kill} sent'}), 200
                 return jsonify({'error': f'{kill} failed.'}), 400
             else:
@@ -72,6 +76,10 @@ class DG4202APIServer:
                 Response: a Flask response.
             """
             state = request.args.get('state')
+            if isinstance(self.dg4202_interface, DG4202MockInterface):
+                if self.dg4202_interface.killed:
+                    return jsonify({'error': f'{state} failed.'}), 400
+
             if state is None:
                 return jsonify({'error': 'state parameter is missing.'}), 422
 

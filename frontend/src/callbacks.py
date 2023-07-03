@@ -7,8 +7,8 @@ import traceback
 from pages import factory, plotter
 
 
+def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
 
-def main_callbacks(app:dash.Dash, args_dict:dict,pages:dict):
     @app.callback(dash.dependencies.Output('page-content', 'children'),
                   [dash.dependencies.Input('url', 'pathname')])
     def display_page(pathname):
@@ -26,3 +26,7 @@ def main_callbacks(app:dash.Dash, args_dict:dict,pages:dict):
                 html.Pre(traceback.format_exc()),
                 html.P(f'{e}'),
             ])
+
+    @app.callback(Output('app-uptime', 'children'), Input('global-ticker', 'n_intervals'))
+    def update_uptime(n):
+        return [f"UP : {factory.get_uptime()}"]
