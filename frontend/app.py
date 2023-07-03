@@ -163,7 +163,7 @@ def run_application():
             threads.append(flask_thread)
             flask_thread.start()
             if args_dict.get("api_server"):
-                print(f"Running DG4202 API server athttp://localhost:{args_dict['api_server']}.")
+                print(f"Running DG4202 API server at http://localhost:{args_dict['api_server']}.")
 
                 # TODO create callback for interface refresh
                 # Start the API server in another thread
