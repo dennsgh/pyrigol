@@ -4,7 +4,7 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 from pages import factory
-from device.dg4202 import DG4202APIServer
+from api.dg4202_api import DG4202APIServer
 import argparse
 import waitress
 from callbacks import main_callbacks
@@ -117,9 +117,9 @@ def run_flask_app(app, host, port):
     flask_server.serve_forever()
 
 
-def run_api_server(interface, server_port):
+def run_api_server(dg4202_interface, server_port):
     # Your function to start the API server
-    api = DG4202APIServer(dg4202_interface=interface, server_port=server_port)
+    api = DG4202APIServer(dg4202_interface=dg4202_interface, server_port=server_port)
     api.run()
 
 
@@ -151,34 +151,34 @@ def run_application():
     args_dict = vars(args)
     print(args_dict)
     app = create_app(args_dict)
+    try:
+        if args_dict.get('env') == 'production':
+            waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
+        else:
+            threads = []
+            # Start the Flask app in one thread
+            print(f"Running Dash Application at http://localhost:{args_dict['port']}")
+            flask_thread = threading.Thread(target=run_dash_application, args=(app, args_dict))
+            flask_thread.daemon = True
+            threads.append(flask_thread)
+            flask_thread.start()
+            if args_dict.get("api_server"):
+                print(f"Running DG4202 API server athttp://localhost:{args_dict['api_server']}.")
 
-    if args_dict.get('env') == 'production':
-        waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
-    else:
-        # Start the Flask app in one thread
-        print(f"Starting Application at http://localhost:{args_dict['port']}")
-        flask_thread = threading.Thread(target=run_flask_app,
-                                        args=(app, '0.0.0.0', args_dict['port']))
-
-        flask_thread.start()
-
-        if args_dict.get("api_server"):
-            print(f"Running DG4202 API server on port http://localhost:{args_dict['api_server']}.")
-
-            # Start the API server in another thread
-            if args_dict["hardware_mock"]:
+                # TODO create callback for interface refresh
+                # Start the API server in another thread
                 api_thread = threading.Thread(target=run_api_server,
-                                              args=(factory.create_dg4202(args_dict),
+                                              args=(factory.create_dg4202(args_dict).interface,
                                                     args_dict['api_server']))
-            else:
-                api_thread = threading.Thread(target=run_api_server,
-                                              args=(factory.dg4202_mock_interface,
-                                                    args_dict['api_server']))
-            api_thread.start()
+                api_thread.daemon = True
+                threads.append(api_thread)
+                api_thread.start()
 
-        # Join the threads
-        flask_thread.join()
-        api_thread.join()
+            # Join the threads
+            #flask_thread.join()
+            #api_thread.join()
+    except KeyboardInterrupt:
+        print("Exit signal detected.")
 
 
 if __name__ == "__main__":
