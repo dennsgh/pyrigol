@@ -104,6 +104,7 @@ def create_app(args_dict):
             dbc.Collapse(dbc.Button()),
             html.Div(id="app-uptime"),
             html.Div(id="device-uptime"),
+            html.Div(id="device-status-indicator"),
         ],
         id="sidebar",
     )
@@ -181,8 +182,8 @@ def run_application():
         threads = []
         # Start the Flask app in one thread
         print(f"Running Dash Application at http://localhost:{args_dict['port']}")
-        flask_thread = threading.Thread(target=run_dash_application,
-                                        args=(app, args_dict, stop_event))
+        flask_thread = threading.Thread(target=run_flask_app,
+                                        args=(app, '0.0.0.0', args_dict['port'], stop_event))
         #flask_thread.daemon = True
         threads.append(flask_thread)
         flask_thread.start()

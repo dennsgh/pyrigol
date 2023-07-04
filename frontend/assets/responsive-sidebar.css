@@ -4,6 +4,14 @@
     background-color: #f8f9fa;
 }
 
+.round {
+    border-radius: 50%;
+    width: 15px;
+    height: 15px;
+    display: inline-block;
+}
+
+
 #sidebar h2 {
     text-align: left;
     margin-bottom: 0;

@@ -1,4 +1,5 @@
 from pages.templates import BasePage
+from pages.templates import create_dropdown, create_input, create_button
 import dash_bootstrap_components as dbc
 import dash
 import functools
@@ -12,81 +13,20 @@ from datetime import datetime
 from dash.exceptions import PreventUpdate
 
 NOT_FOUND_STRING = 'Device not found!'
-TIMER_INTERVAL = 100.  # in ms
+TIMER_INTERVAL = 1000.  # in ms
 TIMER_INTERVAL_S = TIMER_INTERVAL / 1000.  # in ms
-
-
-def create_dropdown(id: str, label: str, options: list, default_value=None) -> dbc.Row:
-    """
-    Create a dropdown component with label and options.
-
-    Parameters:
-        id (str): ID of the dropdown component.
-        label (str): Label for the dropdown.
-        options (list): List of options for the dropdown.
-        default_value (str, optional): Default selected value. Defaults to None.
-
-    Returns:
-        dbc.Row: A row containing the label and dropdown components.
-    """
-    return dbc.Row([
-        dbc.Col(dbc.Label(label, html_for=id), md=4),
-        dbc.Col(dcc.Dropdown(
-            id=id,
-            options=[{
-                "label": opt,
-                "value": opt
-            } for opt in options],
-            value=default_value if default_value is not None else (options[0] if options else None),
-        ),
-                md=8)
-    ],
-                   className="my-2")
-
-
-def create_input(id: str, label: str, placeholder: str, default_value=None) -> dbc.Row:
-    """
-    Create an input component with label and placeholder.
-
-    Parameters:
-        id (str): ID of the input component.
-        label (str): Label for the input.
-        placeholder (str): Placeholder text for the input.
-        default_value (str, optional): Default value for the input. Defaults to None.
-
-    Returns:
-        dbc.Row: A row containing the label and input components.
-    """
-    return dbc.Row([
-        dbc.Col(dbc.Label(label, html_for=id), md=4),
-        dbc.Col(dcc.Input(id=id, type="text", placeholder=placeholder, value=default_value), md=8)
-    ],
-                   className="my-2")
-
-
-def create_button(id: str, label: str) -> dbc.Button:
-    """
-    Create a button component.
-
-    Parameters:
-        id (str): ID of the button component.
-        label (str): Label for the button.
-
-    Returns:
-        dbc.Button: The button component.
-    """
-    return dbc.Button(label, id=id, color="primary", className="m-2")
 
 
 class DashboardPage(BasePage):
     ticker = dcc.Interval(
         id='interval-component',
-        interval=1 * TIMER_INTERVAL,  # in milliseconds, e.g. every 5 seconds
+        interval=1 * 100,  # in milliseconds, e.g. every 5 seconds
         n_intervals=0)
     channel_count = 2
     link_channel = False
     # This dictionary will indirectly control the content based on mode
     all_parameters = {}
+    transition = False
     error_layout = html.Div([
         dbc.Col([
             html.H1("Connection Error"),
@@ -106,18 +46,9 @@ class DashboardPage(BasePage):
 
         if self.my_generator is not None:
             is_alive = self.my_generator.is_connection_alive()
-
             if not is_alive:
-                factory.last_known_device_uptime = None
                 self.my_generator = None
-            # device is alive.
-            # transition from dead to alive None -> time
-            if factory.last_known_device_uptime is None:
-                factory.last_known_device_uptime = time.time()
             return is_alive
-        # connection is dead from here
-        factory.last_known_device_uptime = None
-
         return False
 
     def get_all_parameters(self) -> bool:
@@ -162,16 +93,12 @@ class DashboardPage(BasePage):
         self.channel_layouts = {}  # The static layouts (contains layout variables)
         self.mode_layouts = {}  # The dynamic switchable currently on layouts
         self.content = []  # layout shown on page
-
-        self.default_logic = [
-            html.Div(id='dynamic-content'),
-            html.Div(id='layout-update-trigger', style={'display': 'none'})
-        ]
-
-        #initialize variable
         is_connected = self.get_all_parameters()
+        #initialize variable
         self.content.append(html.Div(id="dynamic-controls"))
         self.content.append(self.ticker)
+        self.content.append(create_button(id="link-channels-button", label="Link Channels"))
+        self.content.append(html.Div(id="link-channel-state", style={"display": "none"}))
         # Check for modes and other initial setup
         for channel in range(1, self.channel_count + 1):
             # per channel layouts
@@ -187,13 +114,19 @@ class DashboardPage(BasePage):
 
         for channel in range(1, self.channel_count + 1):
             # per channel layouts
-            self.content.append(html.Div(id=f"channel-status-{channel}"))
             self.content.append(html.Div(id=f"debug-{channel}"))
             self.content.append(
-                create_dropdown(id=f"mode-dropdown-{channel}",
-                                label=f"Mode CH{channel}",
-                                options=["off", "sweep", "burst", "mod"],
-                                default_value=self.all_parameters[f"{channel}"]["mode"]["mode"]))
+                dbc.Row([
+                    dbc.Col(
+                        create_dropdown(
+                            id=f"mode-dropdown-{channel}",
+                            label=f"Mode CH{channel}",
+                            options=["off", "sweep", "burst", "mod"],
+                            default_value=self.all_parameters[f"{channel}"]["mode"]["mode"],
+                            label_width=4,
+                            dropdown_width=4)),
+                    dbc.Col(html.Div(id=f"channel-status-{channel}"))
+                ]))
             self.content.append(
                 create_button(id=f"set-mode-{channel}", label=f"Set Mode CH{channel}"))
             # This is the channel content that will change depending on the mode set!
@@ -202,14 +135,15 @@ class DashboardPage(BasePage):
                                                        id=f"channel-content-{channel}")
 
             self.content.append(self.mode_layouts[f"{channel}"])
-            # we have to store this
-            self.final_layout = html.Div(
-                dbc.Container(
-                    [
-                        html.H1("Dashlab", className="my-4"),
-                    ] + self.content if is_connected else self.error_layout,
-                    fluid=True,
-                ))
+
+        self.final_layout = html.Div(
+            dbc.Container([
+                dbc.Row([
+                    html.H1("Dashlab", className="my-4"),
+                    html.H4("", id='connection-status', className="my-4")
+                ])
+            ] + self.content,
+                          fluid=True))
         return self.final_layout
 
     def generate_sweep_control(self, channel: int) -> dbc.Col:
@@ -248,6 +182,8 @@ class DashboardPage(BasePage):
         Returns:
             dbc.Row: The row containing the waveform control components.
         """
+        print(f"{self.all_parameters}")
+
         waveform_plot = dcc.Graph(
             id=f"waveform-plot-{channel}",
             figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"]))
@@ -257,7 +193,9 @@ class DashboardPage(BasePage):
                     [
                         create_dropdown(id=f"waveform-type-{channel}",
                                         label=f"Waveform Type CH{channel}",
-                                        options=DG4202.available_waveforms()),
+                                        options=DG4202.available_waveforms(),
+                                        label_width=4,
+                                        dropdown_width=4),
                         create_input(id=f"waveform-frequency-{channel}",
                                      label="Frequency(Hz)",
                                      placeholder="Frequency (Hz)",
@@ -291,26 +229,29 @@ class DashboardPage(BasePage):
                     md=6  # Set column width to 6 out of 12
                 ),
                 dbc.Col(  # Second Column
-                    [
-                        html.H2(f"Waveform Plot CH{channel}", className="my-4"),  # Optional title
-                        waveform_plot
-                    ],
+                    [waveform_plot],
                     md=6  # Set column width to 6 out of 12
                 )
             ])
 
         return channel_row
 
+    def reconnect(self):
+        self.my_generator = factory.create_dg4202(self.args_dict)
+        print("Reconnecting...")
+        return self.check_connection()
+
     def register_callbacks(self):
         """
         Register the callbacks for updating the content based on user interactions.
         """
-
+        '''
         @self.app.callback(Output('dynamic-content', 'children'),
-                           Input('layout-update-trigger', 'children'))
+                           Input('ticker-event-data', 'children'))
         def update(new_layout):
             self.update_layout(new_layout)
-            return new_layout
+            return dash.no_update
+        '''
 
         def update_mode_content(channel: int, n_clicks: int, mode: str):
             """
@@ -394,8 +335,8 @@ class DashboardPage(BasePage):
                 tuple: A tuple containing the status string and the waveform plot figure.
             """
             status_string = f"{channel}"
-            print("UPDATE_WAVEFORM")
             if self.get_all_parameters():
+                print("UPDATE_WAVEFORM")
                 frequency = float(frequency) if frequency else float(
                     self.all_parameters[f"{channel}"]["waveform"]["frequency"])
                 amplitude = float(amplitude) if amplitude else float(
@@ -413,7 +354,6 @@ class DashboardPage(BasePage):
 
                 return status_string, figure
             else:
-                self.update_layout(new_layout=self.error_layout)
                 return NOT_FOUND_STRING, dash.no_update
 
         # calls the individual functionality
@@ -437,7 +377,6 @@ class DashboardPage(BasePage):
                 tuple: A tuple containing the updated status string and waveform plot figure.
             """
             if self.get_all_parameters():
-                self.update_layout(self.final_layout)
                 ctx = dash.callback_context
                 if not ctx.triggered:
                     return dash.no_update, dash.no_update
@@ -451,8 +390,6 @@ class DashboardPage(BasePage):
                     elif input_id == f"output-off-{channel}":
                         return update_status_off_click(channel, n_clicks_off), dash.no_update
             else:
-                self.update_layout(self.error_layout)
-                print(f"update_channel {self.all_parameters}")
                 return NOT_FOUND_STRING, dash.no_update
 
         for channel in range(1, self.channel_count + 1):  # Assuming we have two channels
@@ -475,17 +412,13 @@ class DashboardPage(BasePage):
             )(functools.partial(update_mode_content, channel))
 
         # Callback
-
-        @self.app.callback(Output('layout-update-trigger', 'children'),
-                           Input('interval-component', 'n_intervals'))
-        def ticker(n):
+        @self.app.callback(Output('connection-status', 'children'),
+                           Input('global-ticker', 'n_intervals'))
+        def global_ticker(n):
             if self.get_all_parameters():
-                print("alive")
-                self.update_layout(self.final_layout)
-                return self.final_layout
+                return ["Device Connected"]
             else:
-                self.update_layout(self.error_layout)
-                return self.error_layout
+                return ["Device Disconnected"]
 
         @self.app.callback(
             Output("connect-fail-dummy", "children"),
@@ -510,8 +443,14 @@ class DashboardPage(BasePage):
             else:
                 self.update_layout(self.error_layout)
                 return [f"Check the connection. [{datetime.now().isoformat()}]"]
+                # Callback for link channels button
 
-    def reconnect(self):
-        self.my_generator = factory.create_dg4202(self.args_dict)
-        print("Reconnecting...")
-        return self.check_connection()
+        @self.app.callback(Output("link-channel-state", "children"),
+                           [Input("link-channels-button", "n_clicks")])
+        def on_link_channels_button_click(n):
+            # Toggle the link channel state each time the button is clicked
+            if n is None:
+                # This is the initial call, so return the default state
+                return "false"
+            else:
+                return "true" if n % 2 != 0 else "false"

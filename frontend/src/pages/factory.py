@@ -2,13 +2,14 @@ from device.dg4202 import DG4202, DG4202Detector, DG4202MockInterface, DG4202Sta
 from datetime import datetime, timedelta
 import time
 
-DG4202_FSM = DG4202StateMachine()
-DG4202_MOCK_INTERFACE = DG4202MockInterface(DG4202_FSM)
-DG4202_MOCK_DEVICE = DG4202(DG4202_MOCK_INTERFACE)
-
 # Track the start time
 start_time = time.time()
 last_known_device_uptime = None
+dg4202_device = None
+
+DG4202_FSM = DG4202StateMachine()
+DG4202_MOCK_INTERFACE = DG4202MockInterface(DG4202_FSM)
+DG4202_MOCK_DEVICE = DG4202(DG4202_MOCK_INTERFACE)
 
 
 def get_uptime():
@@ -20,22 +21,34 @@ def get_uptime():
     return uptime_str
 
 
-def get_device_uptime():
+def create_dg4202(args_dict: dict) -> DG4202:
+    global dg4202_device
+    global last_known_device_uptime  # To set the start of the uptime
+
+    if args_dict['hardware_mock']:
+        if DG4202_MOCK_INTERFACE.killed:
+            # Simulate dead device
+            last_known_device_uptime = None
+            return None
+        else:
+            if last_known_device_uptime is None:
+                last_known_device_uptime = time.time()
+            return DG4202_MOCK_DEVICE
+    else:
+        dg4202_device = DG4202Detector().detect_device()
+        if dg4202_device is None:
+            last_known_device_uptime = None  # Reset the uptime
+        else:
+            if last_known_device_uptime is None:
+                last_known_device_uptime = time.time()
+        return dg4202_device
+
+
+def get_device_uptime(args_dict: dict):
+    global last_known_device_uptime
     if last_known_device_uptime:
         uptime_seconds = time.time() - last_known_device_uptime
         uptime_str = str(timedelta(seconds=int(uptime_seconds)))
         return uptime_str
     else:
         return "N/A"
-
-
-def create_dg4202(args_dict: dict) -> DG4202:
-    if args_dict['hardware_mock']:
-        if DG4202_MOCK_INTERFACE.killed:
-            # simulate dead device
-            # kill it using the --api-server feature using REST API
-            return None
-        else:
-            return DG4202_MOCK_DEVICE
-    else:
-        return DG4202Detector().detect_device()
