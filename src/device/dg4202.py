@@ -375,6 +375,7 @@ class DG4202StateMachine(DG4202):
                 "SOURce2:BURSt:STATe ON", "SOURce2:MOD:STATe ON"
         ]:
             command, value = command.split()
+            print(f"setting {command} {value}")
             self.state[command] = '1'
         elif command in [
                 "OUTPut1 OFF", "SOURce1:SWEEp:STATe OFF", "SOURce1:BURSt:STATe OFF",

@@ -102,6 +102,7 @@ class DashboardPage(BasePage):
         # generate for each channel
         for channel in range(1, self.channel_count + 1):
             self.channel_layouts[f"{channel}"] = {
+                # off is default.
                 "off": self.generate_waveform_control(channel),
                 "sweep": self.generate_sweep_control(channel),
             }
@@ -123,24 +124,23 @@ class DashboardPage(BasePage):
                          id=f"channel-sweep-{channel}")
                 for channel in range(1, self.channel_count + 1)
             ],
-            "Settings": [
-                html.Div([
-                    html.Div(id=f"debug-sweep-{channel}"),
-                    self.channel_layouts[str(channel)]["sweep"]
-                ],
-                         id=f"channel-sweep-{channel}")
-                for channel in range(1, self.channel_count + 1)
-            ]
+            "options": [html.Div([
+                html.H3("Settings"),
+            ])]
         }
         self.content.append(
             dbc.Row([
                 dcc.Tabs(
-                    id=f"mode-tabs-{channel}",
-                    value='off',
+                    id="mode-tabs",
+                    value='default',
                     children=[
-                        dcc.Tab(label='Default', value='off',
+                        dcc.Tab(label='Default',
+                                value='default',
                                 children=self.tab_children["default"]),
                         dcc.Tab(label='Sweep', value='sweep', children=self.tab_children["sweep"]),
+                        dcc.Tab(label='Options',
+                                value='options',
+                                children=self.tab_children["options"]),
                     ],
                 )
             ]))
@@ -149,7 +149,8 @@ class DashboardPage(BasePage):
             dbc.Container([
                 dbc.Row([
                     html.H1("Dashlab", className="my-4"),
-                    html.H4("", id='connection-status', className="my-4")
+                    html.H4("", id='connection-status', className="my-4"),
+                    html.P("", id='mode-switch', className="my-4")
                 ])
             ] + self.content,
                           fluid=True),
@@ -378,7 +379,7 @@ class DashboardPage(BasePage):
             if self.get_all_parameters():
                 return ["Device Connected"]
             else:
-                return ["Device Disconnected"]
+                return ["Device Not Found."]
 
         @self.app.callback(
             Output("connect-fail-dummy", "children"),
@@ -403,12 +404,18 @@ class DashboardPage(BasePage):
                 return [f"Check the connection. [{datetime.now().isoformat()}]"]
                 # Callback for link channels button
 
-        @self.app.callback(Output("link-channel-state", "children"),
-                           [Input("link-channels-button", "n_clicks")])
-        def on_link_channels_button_click(n):
-            # Toggle the link channel state each time the button is clicked
-            if n is None:
-                # This is the initial call, so return the default state
-                return "false"
-            else:
-                return "true" if n % 2 != 0 else "false"
+        @self.app.callback(
+            Output("mode-switch", "children"),
+            [Input("mode-tabs", "value")],
+        )
+        def render_content(tab):
+            if tab == 'default':
+                self.my_generator.set_mode(channel=1, mode='off', mod_type=None)
+                self.my_generator.set_mode(channel=2, mode='off', mod_type=None)
+            elif tab == 'sweep':
+                self.my_generator.set_mode(channel=1, mode='sweep', mod_type=None)
+                self.my_generator.set_mode(channel=2, mode='sweep', mod_type=None)
+            if self.get_all_parameters():
+                return [f"Mode is {self.all_parameters['1']['mode']['mode']}."]
+
+            return ""
