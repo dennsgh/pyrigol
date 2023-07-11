@@ -16,6 +16,8 @@ NOT_FOUND_STRING = 'Device not found!'
 TIMER_INTERVAL = 1000.  # in ms
 TIMER_INTERVAL_S = TIMER_INTERVAL / 1000.  # in ms
 
+DEFAULT_TAB_STYLE = {'height': '30px', 'padding': '2px'}
+
 
 class DashboardPage(BasePage):
     ticker = dcc.Interval(
@@ -87,54 +89,61 @@ class DashboardPage(BasePage):
             return False
 
     def layout(self) -> html.Div:
+        # run this onetime to generate the layout
         # Initialize variables
-
         self.my_generator = factory.create_dg4202(self.args_dict)
+        self.tab_children = {}
         self.channel_layouts = {}  # The static layouts (contains layout variables)
-        self.mode_layouts = {}  # The dynamic switchable currently on layouts
         self.content = []  # layout shown on page
         is_connected = self.get_all_parameters()
-        #initialize variable
+
         self.content.append(html.Div(id="dynamic-controls"))
         self.content.append(self.ticker)
-        self.content.append(create_button(id="link-channels-button", label="Link Channels"))
-        self.content.append(html.Div(id="link-channel-state", style={"display": "none"}))
-        # Check for modes and other initial setup
+        # generate for each channel
         for channel in range(1, self.channel_count + 1):
-            # per channel layouts
             self.channel_layouts[f"{channel}"] = {
                 "off": self.generate_waveform_control(channel),
-                "burst": [],
-                "mod": [],
                 "sweep": self.generate_sweep_control(channel),
-                "error": [],
             }
 
-        # Defining the layout
-
-        for channel in range(1, self.channel_count + 1):
-            # per channel layouts
-            self.content.append(html.Div(id=f"debug-{channel}"))
-            self.content.append(
-                dbc.Row([
-                    dbc.Col(
-                        create_dropdown(
-                            id=f"mode-dropdown-{channel}",
-                            label=f"Mode CH{channel}",
-                            options=["off", "sweep", "burst", "mod"],
-                            default_value=self.all_parameters[f"{channel}"]["mode"]["mode"],
-                            label_width=4,
-                            dropdown_width=4)),
-                    dbc.Col(html.Div(id=f"channel-status-{channel}"))
-                ]))
-            self.content.append(
-                create_button(id=f"set-mode-{channel}", label=f"Set Mode CH{channel}"))
-            # This is the channel content that will change depending on the mode set!
-            self.mode_layouts[f"{channel}"] = html.Div(self.channel_layouts[f"{channel}"][
-                self.all_parameters[f"{channel}"]["mode"]["mode"]],
-                                                       id=f"channel-content-{channel}")
-
-            self.content.append(self.mode_layouts[f"{channel}"])
+        self.tab_children = {
+            "default": [
+                html.Div([
+                    html.Div(id=f"debug-default-{channel}"),
+                    self.channel_layouts[str(channel)]["off"]
+                ],
+                         id=f"channel-default-{channel}")
+                for channel in range(1, self.channel_count + 1)
+            ],
+            "sweep": [
+                html.Div([
+                    html.Div(id=f"debug-sweep-{channel}"),
+                    self.channel_layouts[str(channel)]["sweep"]
+                ],
+                         id=f"channel-sweep-{channel}")
+                for channel in range(1, self.channel_count + 1)
+            ],
+            "Settings": [
+                html.Div([
+                    html.Div(id=f"debug-sweep-{channel}"),
+                    self.channel_layouts[str(channel)]["sweep"]
+                ],
+                         id=f"channel-sweep-{channel}")
+                for channel in range(1, self.channel_count + 1)
+            ]
+        }
+        self.content.append(
+            dbc.Row([
+                dcc.Tabs(
+                    id=f"mode-tabs-{channel}",
+                    value='off',
+                    children=[
+                        dcc.Tab(label='Default', value='off',
+                                children=self.tab_children["default"]),
+                        dcc.Tab(label='Sweep', value='sweep', children=self.tab_children["sweep"]),
+                    ],
+                )
+            ]))
 
         self.final_layout = html.Div(
             dbc.Container([
@@ -143,7 +152,10 @@ class DashboardPage(BasePage):
                     html.H4("", id='connection-status', className="my-4")
                 ])
             ] + self.content,
-                          fluid=True))
+                          fluid=True),
+            className="main-layout",  # add this to enable greying out
+        )
+
         return self.final_layout
 
     def generate_sweep_control(self, channel: int) -> dbc.Col:
@@ -166,10 +178,10 @@ class DashboardPage(BasePage):
             create_input(id=f"sweep-start-{channel}",
                          label="Start (Hz)",
                          placeholder=f"Sweep start frequency CH{channel}"),
-            create_button(id=f"set-sweep-{channel}", label=f"Set Sweep CH{channel}"),
             create_input(id=f"sweep-stop-{channel}",
                          label="Stop (Hz)",
                          placeholder=f"Sweep stop frequency CH{channel}"),
+            create_button(id=f"sweep-{channel}", label=f"Sweep CH{channel}"),
         ])
 
     def generate_waveform_control(self, channel: int) -> dbc.Row:
@@ -182,8 +194,6 @@ class DashboardPage(BasePage):
         Returns:
             dbc.Row: The row containing the waveform control components.
         """
-        print(f"{self.all_parameters}")
-
         waveform_plot = dcc.Graph(
             id=f"waveform-plot-{channel}",
             figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"]))
@@ -242,49 +252,6 @@ class DashboardPage(BasePage):
         return self.check_connection()
 
     def register_callbacks(self):
-        """
-        Register the callbacks for updating the content based on user interactions.
-        """
-        '''
-        @self.app.callback(Output('dynamic-content', 'children'),
-                           Input('ticker-event-data', 'children'))
-        def update(new_layout):
-            self.update_layout(new_layout)
-            return dash.no_update
-        '''
-
-        def update_mode_content(channel: int, n_clicks: int, mode: str):
-            """
-            Update the mode content based on the selected mode.
-
-            Parameters:
-                channel (int): The channel number.
-                n_clicks (int): The number of clicks.
-                mode (str): The selected mode.
-
-            Returns:
-                list: The updated content.
-            """
-            if self.get_all_parameters():
-                ctx = dash.callback_context
-                if not ctx.triggered:
-                    return dash.no_update
-                else:
-                    input_id = ctx.triggered[0]["prop_id"].split(".")[0]
-                if input_id == f"set-mode-{channel}":
-                    content = []
-                    if mode in DG4202.available_modes():
-                        # mode change
-                        self.my_generator.set_mode(channel=channel, mode=mode, mod_type=None)
-                        content.append(self.channel_layouts[f"{channel}"][mode])
-                        return content
-                    else:
-                        return dash.no_update
-            else:
-                # self.update_layout(new_layout=self.error_layout)
-                return dash.no_update
-
-        #################################################################
 
         def update_status_on_click(channel: int, n_clicks: int):
             """
@@ -394,7 +361,7 @@ class DashboardPage(BasePage):
 
         for channel in range(1, self.channel_count + 1):  # Assuming we have two channels
             self.app.callback(
-                Output(f"channel-status-{channel}", "children"),
+                Output(f"debug-default-{channel}", "children"),
                 Output(f"waveform-plot-{channel}", "figure"),
                 Input(f"set-waveform-{channel}", "n_clicks"),
                 Input(f"output-on-{channel}", "n_clicks"),
@@ -404,13 +371,6 @@ class DashboardPage(BasePage):
                 State(f"waveform-amplitude-{channel}", "value"),
                 State(f"waveform-offset-{channel}", "value"),
             )(functools.partial(update_channel, channel))
-
-            self.app.callback(
-                Output(f"channel-content-{channel}", "children"),
-                Input(f"set-mode-{channel}", "n_clicks"),
-                State(f"mode-dropdown-{channel}", "value"),
-            )(functools.partial(update_mode_content, channel))
-
         # Callback
         @self.app.callback(Output('connection-status', 'children'),
                            Input('global-ticker', 'n_intervals'))
@@ -438,10 +398,8 @@ class DashboardPage(BasePage):
             if self.reconnect():
                 print("Reconnected.")
                 # do not modify page_layout directly
-                self.update_layout(self.final_layout)
                 return ["Device found. Please refresh the page."]
             else:
-                self.update_layout(self.error_layout)
                 return [f"Check the connection. [{datetime.now().isoformat()}]"]
                 # Callback for link channels button
 

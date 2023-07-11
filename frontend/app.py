@@ -1,4 +1,4 @@
-from pages import home, dashboard
+from pages import home, dashboard, dev
 import threading
 import dash
 import dash_bootstrap_components as dbc
@@ -12,28 +12,9 @@ from threading import Barrier
 from werkzeug.serving import make_server
 
 # At the top of the script:
-import time
 from datetime import timedelta
 
 import os
-import signal
-
-
-def get_sidebar_layout(current_page):
-    common_sidebar_elements = [
-        html.H2("Navigation"),
-        dcc.Link("Home", href="/"),
-        html.Br(),
-        dcc.Link("Dashlab", href="/dashlab"),
-        html.Br()
-    ]
-
-    if current_page == "Home":
-        return html.Div(common_sidebar_elements)
-    elif current_page == "Dashlab":
-        return html.Div(common_sidebar_elements)
-    else:
-        return html.Div([])
 
 
 def create_app(args_dict):
@@ -49,7 +30,8 @@ def create_app(args_dict):
     # Generate pages
     pages = {
         "Home": home.HomePage(app=app, args_dict=args_dict),
-        "Dashlab": dashboard.DashboardPage(app=app, args_dict=args_dict)
+        "DG4202": dashboard.DashboardPage(app=app, args_dict=args_dict),
+        "Dev": dev.DevPage(app=app, args_dict=args_dict),
     }
     app.title = "pyrigol"
 
@@ -94,7 +76,7 @@ def create_app(args_dict):
                 dbc.Nav(
                     [
                         dbc.NavLink("Home", href="/", active="exact"),
-                        dbc.NavLink("Dashlab", href="/dashlab", active="exact"),
+                        dbc.NavLink("DG4202", href="/dg4202", active="exact"),
                     ],
                     vertical=True,
                     pills=True,

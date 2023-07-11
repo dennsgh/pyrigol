@@ -17,8 +17,8 @@ def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
             print(f"{pathname}")
             if pathname == '/' or pathname == '/home':
                 return pages["Home"].page_layout
-            elif pathname == '/dashlab':
-                return pages["Dashlab"].page_layout
+            elif pathname == '/dg4202':
+                return pages["DG4202"].page_layout
             else:
                 return '404 - Page not found'
         except Exception as e:
