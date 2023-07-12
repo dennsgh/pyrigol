@@ -2,6 +2,34 @@ import dash
 from dash import html, Input, Output, dcc
 import dash.dcc.Store as Store
 import dash_bootstrap_components as dbc
+import time
+import threading
+
+
+class Timer:
+
+    def __init__(self):
+        self.start_time = None
+        self.duration = None
+        self.is_running = False
+        self.thread = None
+
+    def start(self, start_time, duration):
+        self.start_time = start_time
+        self.duration = duration
+        self.is_running = True
+        self.thread = threading.Thread(target=self.run)
+        self.thread.start()
+
+    def stop(self):
+        self.is_running = False
+        if self.thread is not None:
+            self.thread.join()
+
+    def run(self):
+        while self.is_running and time.time() - self.start_time <= self.duration:
+            time.sleep(1)  # sleep for 1 second
+        self.is_running = False
 
 
 def create_dropdown(id: str,
@@ -61,7 +89,7 @@ def create_input(id: str, label: str, placeholder: str, default_value=None) -> d
                    className="my-2")
 
 
-def create_button(id: str, label: str) -> dbc.Button:
+def create_button(id: str, label: str, default_value=None) -> dbc.Button:
     """
     Create a button component.
 

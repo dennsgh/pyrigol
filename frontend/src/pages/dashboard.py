@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import dash
 import functools
 import time
+import threading
 from dash.dependencies import Input, Output, State
 from dash import dcc, html
 from pages import factory
@@ -25,7 +26,6 @@ class DashboardPage(BasePage):
         interval=1 * 100,  # in milliseconds, e.g. every 5 seconds
         n_intervals=0)
     channel_count = 2
-    link_channel = False
     # This dictionary will indirectly control the content based on mode
     all_parameters = {}
     transition = False
@@ -91,6 +91,7 @@ class DashboardPage(BasePage):
     def layout(self) -> html.Div:
         # run this onetime to generate the layout
         # Initialize variables
+        self.link_channel = False
         self.my_generator = factory.create_dg4202(self.args_dict)
         self.tab_children = {}
         self.channel_layouts = {}  # The static layouts (contains layout variables)
@@ -107,52 +108,59 @@ class DashboardPage(BasePage):
                 "sweep": self.generate_sweep_control(channel),
             }
 
-        self.tab_children = {
-            "default": [
-                html.Div([
-                    html.Div(id=f"debug-default-{channel}"),
-                    self.channel_layouts[str(channel)]["off"]
-                ],
-                         id=f"channel-default-{channel}")
-                for channel in range(1, self.channel_count + 1)
-            ],
-            "sweep": [
-                html.Div([
-                    html.Div(id=f"debug-sweep-{channel}"),
-                    self.channel_layouts[str(channel)]["sweep"]
-                ],
-                         id=f"channel-sweep-{channel}")
-                for channel in range(1, self.channel_count + 1)
-            ],
-            "options": [html.Div([
-                html.H3("Settings"),
-            ])]
-        }
-        self.content.append(
-            dbc.Row([
-                dcc.Tabs(
-                    id="mode-tabs",
-                    value='default',
-                    children=[
-                        dcc.Tab(label='Default',
-                                value='default',
-                                children=self.tab_children["default"]),
-                        dcc.Tab(label='Sweep', value='sweep', children=self.tab_children["sweep"]),
-                        dcc.Tab(label='Options',
-                                value='options',
-                                children=self.tab_children["options"]),
+            self.tab_children[f"{channel}"] = {
+                "default": [
+                    html.Div([
+                        html.Div(id=f"debug-default-{channel}"),
+                        self.channel_layouts[str(channel)]["off"]
                     ],
-                )
-            ]))
+                             id=f"channel-default-{channel}",
+                             style={})
+                ],
+                "sweep": [
+                    html.Div([
+                        html.Div(id=f"debug-sweep-{channel}"),
+                        self.channel_layouts[str(channel)]["sweep"]
+                    ],
+                             id=f"channel-sweep-{channel}",
+                             style={})
+                ],
+            }
 
+            self.content.append(
+                dbc.Row([
+                    dcc.Tabs(id=f"mode-tabs-{channel}",
+                             value='default',
+                             children=[
+                                 dcc.Tab(
+                                     label='Default',
+                                     value='default',
+                                     children=self.tab_children[f"{channel}"]["default"],
+                                 ),
+                                 dcc.Tab(
+                                     label='Sweep',
+                                     value='sweep',
+                                     children=self.tab_children[f"{channel}"]["sweep"],
+                                 ),
+                             ],
+                             style={})
+                ]))
+
+            self.tab_children["options"] = [
+                html.Div([
+                    dbc.Row([
+                        create_button(id="link-switch", label="Link Channels"),
+                        html.Div(id="link-status")
+                    ])
+                ])
+            ]
         self.final_layout = html.Div(
             dbc.Container([
                 dbc.Row([
-                    html.H1("Dashlab", className="my-4"),
                     html.H4("", id='connection-status', className="my-4"),
-                    html.P("", id='mode-switch', className="my-4")
+                    html.Div("", id='mode-switch', className="my-4")
                 ])
-            ] + self.content,
+            ] + self.tab_children["options"] + self.content,
                           fluid=True),
             className="main-layout",  # add this to enable greying out
         )
@@ -195,6 +203,29 @@ class DashboardPage(BasePage):
         Returns:
             dbc.Row: The row containing the waveform control components.
         """
+
+        # Timer Modal
+
+        timer_modal = dbc.Modal([
+            dbc.ModalHeader("Timer Settings"),
+            dbc.ModalBody([
+                dbc.InputGroup([
+                    dbc.InputGroupText("Start Time"),
+                    dbc.Input(id=f"start-time-{channel}", type="time")
+                ],
+                               className="mb-3"),
+                dbc.InputGroup([
+                    dbc.InputGroupText("Duration (s)"),
+                    dbc.Input(id=f"duration-{channel}", type="number", min=0)
+                ],
+                               className="mb-3")
+            ]),
+            dbc.ModalFooter(
+                dbc.Button("Start Timer", id=f"start-timer-btn-{channel}", color="primary"))
+        ],
+                                id=f"timer-modal-{channel}",
+                                centered=True)
+
         waveform_plot = dcc.Graph(
             id=f"waveform-plot-{channel}",
             figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"]))
@@ -233,9 +264,12 @@ class DashboardPage(BasePage):
                                 dbc.Col(create_button(id=f"output-off-{channel}",
                                                       label=f"Output OFF CH{channel}"),
                                         md=4),
+                                dbc.Col(create_button(id=f"open-timer-modal-btn-{channel}",
+                                                      label=f"Timer CH{channel}"),
+                                        md=4)
                             ],
                             className="my-2",
-                        ),
+                        ), timer_modal
                     ],
                     md=6  # Set column width to 6 out of 12
                 ),
@@ -267,6 +301,8 @@ class DashboardPage(BasePage):
             """
             if n_clicks:
                 self.my_generator.output_on_off(channel, True)
+                if self.link_channel:
+                    self.my_generator.output_on_off(2 if channel == 1 else 1, True)
                 return f"Output turned on. Current device status: {self.my_generator.get_status(channel)}"
             return dash.no_update
 
@@ -283,6 +319,8 @@ class DashboardPage(BasePage):
             """
             if n_clicks:
                 self.my_generator.output_on_off(channel, False)
+                if self.link_channel:
+                    self.my_generator.output_on_off(2 if channel == 1 else 1, False)
                 return f"Output turned off. Current device status: {self.my_generator.get_status(channel)}"
             return dash.no_update
 
@@ -304,7 +342,6 @@ class DashboardPage(BasePage):
             """
             status_string = f"{channel}"
             if self.get_all_parameters():
-                print("UPDATE_WAVEFORM")
                 frequency = float(frequency) if frequency else float(
                     self.all_parameters[f"{channel}"]["waveform"]["frequency"])
                 amplitude = float(amplitude) if amplitude else float(
@@ -316,6 +353,11 @@ class DashboardPage(BasePage):
 
                 # If a parameter is not set, pass the current value
                 self.my_generator.set_waveform(channel, waveform_type, frequency, amplitude, offset)
+
+                if self.link_channel:
+                    self.my_generator.set_waveform(2 if channel == 1 else 1, waveform_type,
+                                                   frequency, amplitude, offset)
+
                 status_string = f"Waveform updated. Current device status: {self.my_generator.get_status(channel)}"
 
                 figure = plotter.plot_waveform(waveform_type, frequency, amplitude, offset)
@@ -330,7 +372,6 @@ class DashboardPage(BasePage):
                            waveform_ampl: str, waveform_off: str):
             """
             Update the channel content based on user interactions.
-
             Parameters:
                 channel (int): The channel number.
                 n_clicks_waveform (int): The number of clicks on the set waveform button.
@@ -360,7 +401,32 @@ class DashboardPage(BasePage):
             else:
                 return NOT_FOUND_STRING, dash.no_update
 
-        for channel in range(1, self.channel_count + 1):  # Assuming we have two channels
+        def toggle_timer_modal(channel, n, is_open):
+            if n:
+                return not is_open
+            return is_open
+
+        def stop_timer(channel, n, store_data):
+            if n and store_data and store_data.get("status") == "started":
+                store_data["status"] = "stopped"
+            return store_data
+
+        def update_mode(channel, tab):
+            if tab == 'default':
+                self.my_generator.set_mode(channel=channel, mode='off', mod_type=None)
+                if self.link_channel:
+                    self.my_generator.set_mode(2 if channel == 1 else 1, mode='off', mod_type=None)
+            elif tab == 'sweep':
+                self.my_generator.set_mode(channel=channel, mode='sweep', mod_type=None)
+                if self.link_channel:
+                    self.my_generator.set_mode(2 if channel == 1 else 1,
+                                               mode='sweep',
+                                               mod_type=None)
+            if self.get_all_parameters():
+                return [f"Mode is {self.all_parameters[f'{channel}']['mode']['mode']}."]
+            return ""
+
+        for channel in range(1, self.channel_count + 1):
             self.app.callback(
                 Output(f"debug-default-{channel}", "children"),
                 Output(f"waveform-plot-{channel}", "figure"),
@@ -372,7 +438,24 @@ class DashboardPage(BasePage):
                 State(f"waveform-amplitude-{channel}", "value"),
                 State(f"waveform-offset-{channel}", "value"),
             )(functools.partial(update_channel, channel))
-        # Callback
+
+            self.app.callback(
+                Output(f"mode-switch-{channel}", "children"),
+                [Input(f"mode-tabs-{channel}", "value")],
+            )(functools.partial(update_mode, channel))
+
+            self.app.callback(
+                Output(f"timer-modal-{channel}", "is_open"),
+                [Input(f"open-timer-modal-btn-{channel}", "n_clicks")],
+                [State(f"timer-modal-{channel}", "is_open")],
+            )(functools.partial(toggle_timer_modal, channel))
+
+            self.app.callback(
+                Output(f"timer-store-{channel}", "data"),
+                [Input(f"stop-timer-btn-{channel}", "n_clicks")],
+                [State(f"timer-store-{channel}", "data")],
+            )(functools.partial(stop_timer, channel))
+
         @self.app.callback(Output('connection-status', 'children'),
                            Input('global-ticker', 'n_intervals'))
         def global_ticker(n):
@@ -405,17 +488,33 @@ class DashboardPage(BasePage):
                 # Callback for link channels button
 
         @self.app.callback(
-            Output("mode-switch", "children"),
-            [Input("mode-tabs", "value")],
-        )
-        def render_content(tab):
-            if tab == 'default':
-                self.my_generator.set_mode(channel=1, mode='off', mod_type=None)
-                self.my_generator.set_mode(channel=2, mode='off', mod_type=None)
-            elif tab == 'sweep':
-                self.my_generator.set_mode(channel=1, mode='sweep', mod_type=None)
-                self.my_generator.set_mode(channel=2, mode='sweep', mod_type=None)
-            if self.get_all_parameters():
-                return [f"Mode is {self.all_parameters['1']['mode']['mode']}."]
+            Output("link-status", "children"),
+            Output("channel-sweep-2", "style"),
+            Output("channel-default-2", "style"),
+            Output("mode-tabs-2", "style"),
+            Output("link-switch", "children"),  # Add this line
+            [Input("link-switch", "n_clicks")],
+            [
+                State("channel-sweep-2", "style"),
+                State("channel-default-2", "style"),
+                State("mode-tabs-2", "style")
+            ])
+        def toggle_link(n_clicks, sweep_style, default_style, mode_style):
+            if n_clicks:
+                self.link_channel = not self.link_channel
 
-            return ""
+                # Modify the styles based on the link_channel status
+                if self.link_channel:
+                    sweep_style["display"] = "none"  # Hide channel-sweep-2
+                    default_style["display"] = "none"  # Hide channel-default-2
+                    mode_style["display"] = "none"  # Hide mode-tabs-2
+                    return ["Link is on"], sweep_style, default_style, mode_style, "Unlink Channels"
+                else:
+                    sweep_style["display"] = "block"  # Show channel-sweep-2
+                    default_style["display"] = "block"  # Show channel-default-2
+                    mode_style["display"] = "block"  # Show mode-tabs-2
+                    return ["Link is off"], sweep_style, default_style, mode_style, "Link Channels"
+            else:
+                return [
+                    "Initial state"
+                ], sweep_style, default_style, mode_style, "Link Channels"  # Default return values
