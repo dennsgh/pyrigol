@@ -1,3 +1,36 @@
+body.dark-mode {
+    background-color: #222;
+    color: #fff;
+}
+
+#sidebar {
+    text-align: center;
+    padding: 2rem 1rem;
+    background-color: #f8f9fa;
+    color: #000;
+}
+
+#sidebar.dark-mode {
+    background-color: #333;
+    color: #fff;
+}
+
+#page-content {
+    padding: 2rem 1rem;
+}
+
+#page-content.dark-mode {
+    background-color: #333;
+    color: #fff;
+}
+
+#toggle {
+    margin-bottom: 1rem;
+}
+
+/* Rest of the CSS styles... */
+
+
 #sidebar {
     text-align: center;
     padding: 2rem 1rem;
@@ -70,7 +103,7 @@
         display: block;
     }
 
-    #collapse *:first-child {
+    #collapse *:first-child { 
         margin-top: 0;
     }
 

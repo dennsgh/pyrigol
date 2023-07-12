@@ -1,16 +1,16 @@
 from pages.templates import BasePage
-from pages.templates import create_dropdown, create_input, create_button
+from pages.templates import create_dropdown, create_input, create_button, ON_INDICATOR, OFF_INDICATOR
 import dash_bootstrap_components as dbc
 import dash
 import functools
 import time
-import threading
+from threading import Timer
 from dash.dependencies import Input, Output, State
 from dash import dcc, html
 from pages import factory
 from device.dg4202 import DG4202
 from pages import factory, plotter
-from datetime import datetime
+from datetime import datetime, timedelta
 from dash.exceptions import PreventUpdate
 
 NOT_FOUND_STRING = 'Device not found!'
@@ -48,6 +48,7 @@ class DashboardPage(BasePage):
 
     def check_connection(self) -> bool:
 
+        self.my_generator = factory.create_dg4202(args_dict=self.args_dict)
         if self.my_generator is not None:
             is_alive = self.my_generator.is_connection_alive()
             if not is_alive:
@@ -214,36 +215,44 @@ class DashboardPage(BasePage):
 
         # Timer Modal
 
-        timer_modal = dbc.Modal([
-            dbc.ModalHeader("Timer"),
-            dbc.ModalBody([
-                dbc.InputGroup([
-                    dbc.InputGroupText("Duration"),
-                    dbc.Input(id=f"timer-duration-{channel}", type="number", min=0),
-                    dbc.InputGroupText(
-                        dcc.Dropdown(id=f"timer-units-{channel}",
-                                     options=[{
-                                         'label': 'ms',
-                                         'value': 'ms'
-                                     }, {
-                                         'label': 's',
-                                         'value': 's'
-                                     }, {
-                                         'label': 'm',
-                                         'value': 'm'
-                                     }, {
-                                         'label': 'h',
-                                         'value': 'h'
-                                     }],
-                                     value='s'))
-                ],
-                               className="mb-3")
-            ]),
-            dbc.ModalFooter(
-                dbc.Button("Start Timer", id=f"start-timer-btn-{channel}", color="primary"))
-        ],
-                                id=f"timer-modal-{channel}",
-                                centered=True)
+        timer_modal = dbc.Modal(
+            [
+                dbc.ModalHeader("Timer"),
+                dcc.Store(id=f'timer-status-{channel}', data={'status': 'stopped'}),
+                dbc.ModalBody([
+                    dbc.InputGroup([
+                        dbc.InputGroupText("Duration"),
+                        dbc.Input(id=f"timer-duration-{channel}", type="number", min=0),
+                        dbc.InputGroupText(
+                            dcc.Dropdown(id=f"timer-units-{channel}",
+                                         options=[{
+                                             'label': 'ms',
+                                             'value': 'ms'
+                                         }, {
+                                             'label': 's',
+                                             'value': 's'
+                                         }, {
+                                             'label': 'm',
+                                             'value': 'm'
+                                         }, {
+                                             'label': 'h',
+                                             'value': 'h'
+                                         }],
+                                         value='s')),
+                    ],
+                                   className="mb-3"),
+                    dbc.Spinner(html.Div(id=f'timer-countdown-{channel}')),
+                    dcc.Interval(
+                        id=f'timer-interval-{channel}',
+                        interval=1000,  # in milliseconds
+                        max_intervals=0  # Start paused
+                    )
+                ]),
+                dbc.ModalFooter(
+                    dbc.Button("Start Timer", id=f"timer-start-btn-{channel}", color="primary"))
+            ],
+            id=f"timer-modal-{channel}",
+            centered=True)
 
         scheduler = dbc.Modal([
             dbc.ModalHeader("Scheduler"),
@@ -296,12 +305,10 @@ class DashboardPage(BasePage):
                                 dbc.Col(create_button(id=f"set-waveform-{channel}",
                                                       label=f"Set Waveform CH{channel}"),
                                         md=4),
-                                dbc.Col(create_button(id=f"output-on-{channel}",
-                                                      label=f"Output ON CH{channel}"),
+                                dbc.Col(create_button(id=f"output-on-off-{channel}",
+                                                      label=f"Power CH{channel}"),
                                         md=4),
-                                dbc.Col(create_button(id=f"output-off-{channel}",
-                                                      label=f"Output OFF CH{channel}"),
-                                        md=4),
+                                dbc.Col(html.Div(id=f"output-status-indicator-{channel}")),
                                 dbc.Col(create_button(id=f"timer-modal-open-btn-{channel}",
                                                       label=f"Timer CH{channel}"),
                                         md=4),
@@ -329,7 +336,7 @@ class DashboardPage(BasePage):
 
     def register_callbacks(self):
 
-        def update_status_on_click(channel: int, n_clicks: int):
+        def update_on_off_click(channel: int, n_clicks: int):
             """
             Update the status when the output on button is clicked.
 
@@ -341,29 +348,18 @@ class DashboardPage(BasePage):
                 str: The updated status string.
             """
             if n_clicks:
-                self.my_generator.output_on_off(channel, True)
+                # Toggle the main channel
+                set_to = False if self.all_parameters[f"{channel}"][
+                    "output_status"] == 'ON' else True
+                self.my_generator.output_on_off(channel, set_to)
+                # on link set to the current channel's settings
                 if self.link_channel:
-                    self.my_generator.output_on_off(2 if channel == 1 else 1, True)
-                return f"Output turned on. Current device status: {self.my_generator.get_status(channel)}"
-            return dash.no_update
-
-        def update_status_off_click(channel: int, n_clicks: int):
-            """
-            Update the status when the output off button is clicked.
-
-            Parameters:
-                channel (int): The channel number.
-                n_clicks (int): The number of clicks.
-
-            Returns:
-                str: The updated status string.
-            """
-            if n_clicks:
-                self.my_generator.output_on_off(channel, False)
-                if self.link_channel:
-                    self.my_generator.output_on_off(2 if channel == 1 else 1, False)
-                return f"Output turned off. Current device status: {self.my_generator.get_status(channel)}"
-            return dash.no_update
+                    self.my_generator.output_on_off(2 if channel == 1 else 1, set_to)
+                return f"[{datetime.now().isoformat()}] Output turned {self.all_parameters[f'{channel}']['output_status']}.", dash.no_update, [
+                    ON_INDICATOR
+                    if self.all_parameters[f"{channel}"]["output_status"] == 'ON' else OFF_INDICATOR
+                ]
+            return dash.no_update, dash.no_update, dash.no_update
 
         def update_waveform(channel: int, set_waveform_clicks: int, waveform_type: str,
                             frequency: str, amplitude: str, offset: str):
@@ -399,48 +395,32 @@ class DashboardPage(BasePage):
                     self.my_generator.set_waveform(2 if channel == 1 else 1, waveform_type,
                                                    frequency, amplitude, offset)
 
-                status_string = f"Waveform updated. Current device status: {self.my_generator.get_status(channel)}"
+                status_string = f"[{datetime.now().isoformat()}] Waveform updated."
 
                 figure = plotter.plot_waveform(waveform_type, frequency, amplitude, offset)
 
-                return status_string, figure
+                return status_string, figure, dash.no_update
             else:
-                return NOT_FOUND_STRING, dash.no_update
+                return NOT_FOUND_STRING, dash.no_update, dash.no_update
 
         # calls the individual functionality
-        def update_channel(channel: int, n_clicks_waveform: int, n_clicks_on: int,
-                           n_clicks_off: int, waveform_type: str, waveform_freq: str,
-                           waveform_ampl: str, waveform_off: str):
-            """
-            Update the channel content based on user interactions.
-            Parameters:
-                channel (int): The channel number.
-                n_clicks_waveform (int): The number of clicks on the set waveform button.
-                n_clicks_on (int): The number of clicks on the output on button.
-                n_clicks_off (int): The number of clicks on the output off button.
-                waveform_type (str): The selected waveform type.
-                waveform_freq (str): The selected waveform frequency.
-                waveform_ampl (str): The selected waveform amplitude.
-                waveform_off (str): The selected waveform offset.
-
-            Returns:
-                tuple: A tuple containing the updated status string and waveform plot figure.
-            """
+        def update_channel(channel: int, n_clicks_waveform: int, n_clicks_on_off: int,
+                           waveform_type: str, waveform_freq: str, waveform_ampl: str,
+                           waveform_off: str):
+            # Simplest way to share the same output log message.
             if self.get_all_parameters():
                 ctx = dash.callback_context
                 if not ctx.triggered:
-                    return dash.no_update, dash.no_update
+                    return dash.no_update, dash.no_update, dash.no_update
                 else:
                     input_id = ctx.triggered[0]["prop_id"].split(".")[0]
                     if input_id == f"set-waveform-{channel}":
                         return update_waveform(channel, n_clicks_waveform, waveform_type,
                                                waveform_freq, waveform_ampl, waveform_off)
-                    elif input_id == f"output-on-{channel}":
-                        return update_status_on_click(channel, n_clicks_on), dash.no_update
-                    elif input_id == f"output-off-{channel}":
-                        return update_status_off_click(channel, n_clicks_off), dash.no_update
+                    elif input_id == f"output-on-off-{channel}":
+                        return update_on_off_click(channel, n_clicks_on_off)
             else:
-                return NOT_FOUND_STRING, dash.no_update
+                return NOT_FOUND_STRING, dash.no_update, dash.no_update
 
         def toggle_timer_modal(channel, n, is_open):
             if n:
@@ -473,16 +453,33 @@ class DashboardPage(BasePage):
         def update_scheduler_time(channel, is_open):
             if is_open:
                 now = datetime.now()
-                return now.strftime('%H:%M:%S')  # Format the current time as 'HH:MM:SS'
-            return ""  # Return an empty string when the modal is closed
+                then = now + timedelta(1.0)
+                return now.strftime(), then.strftime()
+            return "", ""  # Return an empty string when the modal is closed
+
+        def start_timer(channel, n_clicks, duration, time_unit):
+            if n_clicks and duration and time_unit:
+                duration = float(duration)
+                if time_unit == 'm':
+                    duration *= 60  # convert to seconds
+                elif time_unit == 'h':
+                    duration *= 3600  # convert to seconds
+                elif time_unit == 'ms':
+                    duration /= 1000  # convert to seconds
+
+                # Start the interval component
+                # Here you could also set max_intervals based on your timer settings
+                return duration, f"Remaining time: {duration}s"
+            else:
+                return dash.no_update, dash.no_update
 
         for channel in range(1, self.channel_count + 1):
             self.app.callback(
                 Output(f"debug-default-{channel}", "children"),
                 Output(f"waveform-plot-{channel}", "figure"),
+                Output(f"output-status-indicator-{channel}", "figure"),
                 Input(f"set-waveform-{channel}", "n_clicks"),
-                Input(f"output-on-{channel}", "n_clicks"),
-                Input(f"output-off-{channel}", "n_clicks"),
+                Input(f"output-on-off-{channel}", "n_clicks"),
                 State(f"waveform-type-{channel}", "value"),
                 State(f"waveform-frequency-{channel}", "value"),
                 State(f"waveform-amplitude-{channel}", "value"),
@@ -493,29 +490,33 @@ class DashboardPage(BasePage):
                 Output(f"mode-switch-{channel}", "children"),
                 [Input(f"mode-tabs-{channel}", "value")],
             )(functools.partial(update_mode, channel))
-
+            ############################## timer
             self.app.callback(
                 Output(f"timer-modal-{channel}", "is_open"),
                 [Input(f"timer-modal-open-btn-{channel}", "n_clicks")],
                 [State(f"timer-modal-{channel}", "is_open")],
             )(functools.partial(toggle_timer_modal, channel))
 
+            # Adjust the callback for the start_timer function:
+            self.app.callback([
+                Output(f'timer-interval-{channel}', 'max_intervals'),
+                Output(f'timer-countdown-{channel}', 'children')
+            ], [Input(f'timer-start-btn-{channel}', 'n_clicks')], [
+                State(f'timer-duration-{channel}', 'value'),
+                State(f'timer-units-{channel}', 'value')
+            ])(functools.partial(start_timer, channel))
+
+            self.app.callback(
+                Output(f"scheduler-start-time-{channel}", "value"),
+                Output(f"scheduler-end-time-{channel}", "value"),
+                [Input(f"scheduler-modal-{channel}", "is_open")],
+            )(functools.partial(update_scheduler_time, channel))
+
             self.app.callback(
                 Output(f"scheduler-modal-{channel}", "is_open"),
                 [Input(f"scheduler-modal-open-btn-{channel}", "n_clicks")],
                 [State(f"scheduler-modal-{channel}", "is_open")],
             )(functools.partial(toggle_scheduler_modal, channel))
-
-            self.app.callback(
-                Output(f"timer-store-{channel}", "data"),
-                [Input(f"timer-stop-btn-{channel}", "n_clicks")],
-                [State(f"timer-store-{channel}", "data")],
-            )(functools.partial(stop_timer, channel))
-
-            self.app.callback(
-                Output(f"scheduler-start-time-{channel}", "value"),
-                [Input(f"scheduler-modal-{channel}", "is_open")],
-            )(functools.partial(update_scheduler_time, channel))
 
         @self.app.callback(Output('connection-status', 'children'),
                            Input('global-ticker', 'n_intervals'))
@@ -569,13 +570,13 @@ class DashboardPage(BasePage):
                     sweep_style["display"] = "none"  # Hide channel-sweep-2
                     default_style["display"] = "none"  # Hide channel-default-2
                     mode_style["display"] = "none"  # Hide mode-tabs-2
-                    return ["Link is on"], sweep_style, default_style, mode_style, "Unlink Channels"
+                    return [""], sweep_style, default_style, mode_style, "Unlink Channels"
                 else:
                     sweep_style["display"] = "block"  # Show channel-sweep-2
                     default_style["display"] = "block"  # Show channel-default-2
                     mode_style["display"] = "block"  # Show mode-tabs-2
-                    return ["Link is off"], sweep_style, default_style, mode_style, "Link Channels"
+                    return [""], sweep_style, default_style, mode_style, "Link Channels"
             else:
                 return [
-                    "Initial state"
+                    ""
                 ], sweep_style, default_style, mode_style, "Link Channels"  # Default return values

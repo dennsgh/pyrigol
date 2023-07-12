@@ -6,6 +6,7 @@ from dash import html
 import traceback
 import dash_bootstrap_components as dbc
 from pages import factory, plotter
+from pages.templates import ON_INDICATOR, OFF_INDICATOR
 
 
 def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
@@ -33,10 +34,9 @@ def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
                   Input('global-ticker', 'n_intervals'))
     def update_uptime(n):
         if factory.create_dg4202(args_dict) is not None:
-            indicator = [dbc.Badge(" ", color="success",
-                                   className="round")]  # Green Badge for success
+            indicator = [ON_INDICATOR]  # Green Badge for success
         else:
-            indicator = [dbc.Badge(" ", color="danger", className="round")]  # Red Badge for failure
+            indicator = [OFF_INDICATOR]  # Red Badge for failure
 
         app_uptime = [f"App Uptime : {factory.get_uptime()}"]
         device_uptime = [f"Device Uptime : {factory.get_device_uptime(args_dict)}"]

@@ -18,15 +18,13 @@ import os
 
 
 def create_app(args_dict):
-    app = dash.Dash(
-        __name__,
-        external_stylesheets=[dbc.themes.BOOTSTRAP],
-        meta_tags=[{
-            "name": "viewport",
-            "content": "width=device-width, initial-scale=1"
-        }],
-        suppress_callback_exceptions=True  # Add this line,
-    )
+    app = dash.Dash(__name__,
+                    external_stylesheets=[dbc.themes.BOOTSTRAP],
+                    meta_tags=[{
+                        "name": "viewport",
+                        "content": "width=device-width, initial-scale=1"
+                    }],
+                    suppress_callback_exceptions=False)
     # Generate pages
     pages = {
         "Home": home.HomePage(app=app, args_dict=args_dict),
@@ -57,6 +55,7 @@ def create_app(args_dict):
             # vertically align the toggle in the center
             align="center",
         ),
+        html.Div(id="sidebar-content")
     ])
 
     sidebar = html.Div(

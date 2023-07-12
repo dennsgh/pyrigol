@@ -5,6 +5,9 @@ import dash_bootstrap_components as dbc
 import time
 import threading
 
+ON_INDICATOR = dbc.Badge(" ", color="success", className="round")
+OFF_INDICATOR = dbc.Badge(" ", color="danger", className="round")
+
 
 class Timer:
 
