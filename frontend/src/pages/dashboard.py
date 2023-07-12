@@ -19,6 +19,8 @@ TIMER_INTERVAL_S = TIMER_INTERVAL / 1000.  # in ms
 
 DEFAULT_TAB_STYLE = {'height': '30px', 'padding': '2px'}
 
+STRING_TO_MODE = {"default": "off", "sweep": "sweep", "mod": "mod", "burst": "burst"}
+
 
 class DashboardPage(BasePage):
     ticker = dcc.Interval(
@@ -92,6 +94,9 @@ class DashboardPage(BasePage):
         # run this onetime to generate the layout
         # Initialize variables
         self.link_channel = False
+        self.is_scheduler_running = False
+        self.is_timer_running = False
+
         self.my_generator = factory.create_dg4202(self.args_dict)
         self.tab_children = {}
         self.channel_layouts = {}  # The static layouts (contains layout variables)
@@ -177,20 +182,23 @@ class DashboardPage(BasePage):
         Returns:
             dbc.Col: The column containing the sweep control components.
         """
-        return dbc.Col([
-            create_input(id=f"sweep-duration-{channel}",
-                         label="Duration (s)",
-                         placeholder=f"Sweep duration frequency CH{channel}"),
-            create_input(id=f"sweep-return-{channel}",
-                         label="Return (ms)",
-                         placeholder=f"Sweep return time CH{channel}"),
-            create_input(id=f"sweep-start-{channel}",
-                         label="Start (Hz)",
-                         placeholder=f"Sweep start frequency CH{channel}"),
-            create_input(id=f"sweep-stop-{channel}",
-                         label="Stop (Hz)",
-                         placeholder=f"Sweep stop frequency CH{channel}"),
-            create_button(id=f"sweep-{channel}", label=f"Sweep CH{channel}"),
+        return dbc.Row([
+            dbc.Col([
+                create_input(id=f"sweep-duration-{channel}",
+                             label="Duration (s)",
+                             placeholder=f"Sweep duration frequency CH{channel}"),
+                create_input(id=f"sweep-return-{channel}",
+                             label="Return (ms)",
+                             placeholder=f"Sweep return time CH{channel}"),
+                create_input(id=f"sweep-start-{channel}",
+                             label="Start (Hz)",
+                             placeholder=f"Sweep start frequency CH{channel}"),
+                create_input(id=f"sweep-stop-{channel}",
+                             label="Stop (Hz)",
+                             placeholder=f"Sweep stop frequency CH{channel}"),
+                create_button(id=f"sweep-{channel}", label=f"Sweep CH{channel}"),
+            ]),
+            dbc.Col([html.Div("", id="indicator")])
         ])
 
     def generate_waveform_control(self, channel: int) -> dbc.Row:
@@ -207,16 +215,27 @@ class DashboardPage(BasePage):
         # Timer Modal
 
         timer_modal = dbc.Modal([
-            dbc.ModalHeader("Timer Settings"),
+            dbc.ModalHeader("Timer"),
             dbc.ModalBody([
                 dbc.InputGroup([
-                    dbc.InputGroupText("Start Time"),
-                    dbc.Input(id=f"start-time-{channel}", type="time")
-                ],
-                               className="mb-3"),
-                dbc.InputGroup([
-                    dbc.InputGroupText("Duration (s)"),
-                    dbc.Input(id=f"duration-{channel}", type="number", min=0)
+                    dbc.InputGroupText("Duration"),
+                    dbc.Input(id=f"timer-duration-{channel}", type="number", min=0),
+                    dbc.InputGroupText(
+                        dcc.Dropdown(id=f"timer-units-{channel}",
+                                     options=[{
+                                         'label': 'ms',
+                                         'value': 'ms'
+                                     }, {
+                                         'label': 's',
+                                         'value': 's'
+                                     }, {
+                                         'label': 'm',
+                                         'value': 'm'
+                                     }, {
+                                         'label': 'h',
+                                         'value': 'h'
+                                     }],
+                                     value='s'))
                 ],
                                className="mb-3")
             ]),
@@ -225,6 +244,25 @@ class DashboardPage(BasePage):
         ],
                                 id=f"timer-modal-{channel}",
                                 centered=True)
+
+        scheduler = dbc.Modal([
+            dbc.ModalHeader("Scheduler"),
+            dbc.ModalBody([
+                dbc.InputGroup([
+                    dbc.InputGroupText("Start Time"),
+                    dbc.Input(id=f"scheduler-start-time-{channel}", type="time")
+                ],
+                               className="mb-3"),
+                dbc.InputGroup([
+                    dbc.InputGroupText("End Time"),
+                    dbc.Input(id=f"scheduler-end-time-{channel}", type="time")
+                ],
+                               className="mb-3")
+            ]),
+            dbc.ModalFooter(dbc.Button("Set Schedule", id=f"scheduler-{channel}", color="primary"))
+        ],
+                              id=f"scheduler-modal-{channel}",
+                              centered=True)
 
         waveform_plot = dcc.Graph(
             id=f"waveform-plot-{channel}",
@@ -264,12 +302,15 @@ class DashboardPage(BasePage):
                                 dbc.Col(create_button(id=f"output-off-{channel}",
                                                       label=f"Output OFF CH{channel}"),
                                         md=4),
-                                dbc.Col(create_button(id=f"open-timer-modal-btn-{channel}",
+                                dbc.Col(create_button(id=f"timer-modal-open-btn-{channel}",
                                                       label=f"Timer CH{channel}"),
+                                        md=4),
+                                dbc.Col(create_button(id=f"scheduler-modal-open-btn-{channel}",
+                                                      label=f"Scheduler CH{channel}"),
                                         md=4)
                             ],
                             className="my-2",
-                        ), timer_modal
+                        ), timer_modal, scheduler
                     ],
                     md=6  # Set column width to 6 out of 12
                 ),
@@ -406,25 +447,34 @@ class DashboardPage(BasePage):
                 return not is_open
             return is_open
 
+        def toggle_scheduler_modal(channel, n, is_open):
+            if n:
+                return not is_open
+            return is_open
+
         def stop_timer(channel, n, store_data):
             if n and store_data and store_data.get("status") == "started":
                 store_data["status"] = "stopped"
             return store_data
 
         def update_mode(channel, tab):
-            if tab == 'default':
-                self.my_generator.set_mode(channel=channel, mode='off', mod_type=None)
-                if self.link_channel:
-                    self.my_generator.set_mode(2 if channel == 1 else 1, mode='off', mod_type=None)
-            elif tab == 'sweep':
-                self.my_generator.set_mode(channel=channel, mode='sweep', mod_type=None)
-                if self.link_channel:
-                    self.my_generator.set_mode(2 if channel == 1 else 1,
-                                               mode='sweep',
-                                               mod_type=None)
+            self.my_generator.set_mode(channel=channel, mode=STRING_TO_MODE[tab], mod_type=None)
+            self.my_generator.output_on_off(channel, False)
+
+            if self.link_channel:
+                self.my_generator.set_mode(2 if channel == 1 else 1,
+                                           mode=STRING_TO_MODE[tab],
+                                           mod_type=None)
+                self.my_generator.output_on_off(2 if channel == 1 else 1, False)
             if self.get_all_parameters():
                 return [f"Mode is {self.all_parameters[f'{channel}']['mode']['mode']}."]
             return ""
+
+        def update_scheduler_time(channel, is_open):
+            if is_open:
+                now = datetime.now()
+                return now.strftime('%H:%M:%S')  # Format the current time as 'HH:MM:SS'
+            return ""  # Return an empty string when the modal is closed
 
         for channel in range(1, self.channel_count + 1):
             self.app.callback(
@@ -446,15 +496,26 @@ class DashboardPage(BasePage):
 
             self.app.callback(
                 Output(f"timer-modal-{channel}", "is_open"),
-                [Input(f"open-timer-modal-btn-{channel}", "n_clicks")],
+                [Input(f"timer-modal-open-btn-{channel}", "n_clicks")],
                 [State(f"timer-modal-{channel}", "is_open")],
             )(functools.partial(toggle_timer_modal, channel))
 
             self.app.callback(
+                Output(f"scheduler-modal-{channel}", "is_open"),
+                [Input(f"scheduler-modal-open-btn-{channel}", "n_clicks")],
+                [State(f"scheduler-modal-{channel}", "is_open")],
+            )(functools.partial(toggle_scheduler_modal, channel))
+
+            self.app.callback(
                 Output(f"timer-store-{channel}", "data"),
-                [Input(f"stop-timer-btn-{channel}", "n_clicks")],
+                [Input(f"timer-stop-btn-{channel}", "n_clicks")],
                 [State(f"timer-store-{channel}", "data")],
             )(functools.partial(stop_timer, channel))
+
+            self.app.callback(
+                Output(f"scheduler-start-time-{channel}", "value"),
+                [Input(f"scheduler-modal-{channel}", "is_open")],
+            )(functools.partial(update_scheduler_time, channel))
 
         @self.app.callback(Output('connection-status', 'children'),
                            Input('global-ticker', 'n_intervals'))
