@@ -135,20 +135,25 @@ class DashboardPage(BasePage):
 
             self.content.append(
                 dbc.Row([
-                    dcc.Tabs(id=f"mode-tabs-{channel}",
-                             value='default',
-                             children=[
-                                 dcc.Tab(
-                                     label='Default',
-                                     value='default',
-                                     children=self.tab_children[f"{channel}"]["default"],
-                                 ),
-                                 dcc.Tab(
-                                     label='Sweep',
-                                     value='sweep',
-                                     children=self.tab_children[f"{channel}"]["sweep"],
-                                 ),
-                             ],
+                    html.Div([
+                        html.Div(id=f"mode-message-{channel}"),
+                        dcc.Tabs(id=f"mode-tabs-{channel}",
+                                 value='default',
+                                 children=[
+                                     dcc.Tab(
+                                         label='Default',
+                                         value='default',
+                                         children=self.tab_children[f"{channel}"]["default"],
+                                     ),
+                                     dcc.Tab(
+                                         label='Sweep',
+                                         value='sweep',
+                                         children=self.tab_children[f"{channel}"]["sweep"],
+                                     ),
+                                 ],
+                                 style={})
+                    ],
+                             id=f"channel-wrapper-{channel}",
                              style={})
                 ]))
 
@@ -161,12 +166,9 @@ class DashboardPage(BasePage):
                 ])
             ]
         self.final_layout = html.Div(
-            dbc.Container([
-                dbc.Row([
-                    html.H4("", id='connection-status', className="my-4"),
-                    html.Div("", id='mode-switch', className="my-4")
-                ])
-            ] + self.tab_children["options"] + self.content,
+            dbc.Container([dbc.Row([
+                html.H4("", id='connection-status', className="my-4"),
+            ])] + self.tab_children["options"] + self.content,
                           fluid=True),
             className="main-layout",  # add this to enable greying out
         )
@@ -444,6 +446,7 @@ class DashboardPage(BasePage):
             return store_data
 
         def update_mode(channel, tab):
+            print(f"{tab}")
             self.my_generator.set_mode(channel=channel, mode=STRING_TO_MODE[tab], mod_type=None)
             self.my_generator.output_on_off(channel, False)
 
@@ -493,7 +496,7 @@ class DashboardPage(BasePage):
             )(functools.partial(update_channel, channel))
 
             self.app.callback(
-                Output(f"mode-switch-{channel}", "children"),
+                Output(f"mode-message-{channel}", "children"),
                 [Input(f"mode-tabs-{channel}", "value")],
             )(functools.partial(update_mode, channel))
             ############################## timer
@@ -559,15 +562,15 @@ class DashboardPage(BasePage):
             Output("link-status", "children"),
             Output("channel-sweep-2", "style"),
             Output("channel-default-2", "style"),
-            Output("mode-tabs-2", "style"),
+            Output("channel-wrapper-2", "style"),
             Output("link-switch", "children"),  # Add this line
             [Input("link-switch", "n_clicks")],
             [
                 State("channel-sweep-2", "style"),
                 State("channel-default-2", "style"),
-                State("mode-tabs-2", "style")
+                State("channel-wrapper-2", "style")
             ])
-        def toggle_link(n_clicks, sweep_style, default_style, mode_style):
+        def toggle_link(n_clicks, sweep_style, default_style, channel_wrapper):
             if n_clicks:
                 self.link_channel = not self.link_channel
 
@@ -575,13 +578,13 @@ class DashboardPage(BasePage):
                 if self.link_channel:
                     sweep_style["display"] = "none"  # Hide channel-sweep-2
                     default_style["display"] = "none"  # Hide channel-default-2
-                    mode_style["display"] = "none"  # Hide mode-tabs-2
-                    return [""], sweep_style, default_style, mode_style, "Unlink Channels"
+                    channel_wrapper["display"] = "none"  # Hide mode-tabs-2
+                    return [""], sweep_style, default_style, channel_wrapper, "Unlink Channels"
                 else:
                     sweep_style["display"] = "block"  # Show channel-sweep-2
                     default_style["display"] = "block"  # Show channel-default-2
-                    mode_style["display"] = "block"  # Show mode-tabs-2
-                    return [""], sweep_style, default_style, mode_style, "Link Channels"
+                    channel_wrapper["display"] = "block"  # Show mode-tabs-2
+                    return [""], sweep_style, default_style, channel_wrapper, "Link Channels"
             else:
                 return [
                     ""
