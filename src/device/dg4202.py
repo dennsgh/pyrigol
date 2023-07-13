@@ -230,10 +230,10 @@ class DG4202:
         Args:
             channel (int): The output channel to set.
             sweep_params (dict): Dictionary of parameters for sweep mode.
-                Expected keys are 'STAR', 'STOP', 'TIME', 'SPAC' etc.
+                Expected keys are 'START', 'STOP', 'SWEEP'.
         """
         self.interface.write(f"SOURce{channel}:SWEEp:STATe ON")
-        for param in ['STAR', 'STOP', 'TIME', 'SPAC']:  # Add more parameters as needed
+        for param in ['START', 'STOP', 'SWEEP']:  # Add 'RETURN' if there's a corresponding command
             if param not in sweep_params:
                 sweep_params[param] = self.interface.read(f"SOURce{channel}:SWEEp:{param}?")
             self.interface.write(f"SOURce{channel}:SWEEp:{param} {sweep_params[param]}")
@@ -254,22 +254,62 @@ class DG4202:
         mod_type = self.interface.read(f"SOURce{channel}:MOD:TYPE?") if mod_state == '1' else None
 
         mode_params = {}
+        mode_params["sweep"] = self.get_sweep_parameters(channel)
+        mode_params["burst"] = {}
+        mode_params[f"mod ({mod_type})"] = {}
         if sweep_state == '1':
             mode = 'sweep'
-            for param in ['STAR', 'STOP', 'TIME', 'SPAC']:  # Add more parameters as needed
-                mode_params[param] = self.interface.read(f"SOURce{channel}:SWEEp:{param}?")
         elif burst_state == '1':
             mode = 'burst'
-            for param in ['NCYC', 'MODE', 'TRIG', 'PHAS']:  # Add more parameters as needed
-                mode_params[param] = self.interface.read(f"SOURce{channel}:BURSt:{param}?")
         elif mod_state == '1':
             mode = f'mod ({mod_type})'
-            for param in ['SOUR', 'DEPT', 'DEV', 'RATE']:  # Add more parameters as needed
-                mode_params[param] = self.interface.read(f"SOURce{channel}:MOD:{mod_type}:{param}?")
         else:
             mode = 'off'
 
-        return {"mode": mode, "parameters": mode_params}
+        return {"current_mode": mode, "parameters": mode_params}
+
+    def get_sweep_parameters(self, channel: int) -> dict:
+        """
+        Retrieves the sweep parameters currently set on the device.
+
+        Args:
+            channel (int): The output channel to check.
+
+        Returns:
+            dict: A dictionary containing the sweep parameters.
+        """
+        sweep_params = {}
+        sweep_params['FSTART'] = self.interface.read(f"SOURce{channel}:FREQuency:STARt?")
+        sweep_params['FSTOP'] = self.interface.read(f"SOURce{channel}:FREQuency:STOP?")
+        sweep_params['TIME'] = self.interface.read(f"SOURce{channel}:SWEEp:TIME?")
+        sweep_params['RTIME'] = self.interface.read(f"SOURce{channel}:SWEEp:RTIMe?")
+        sweep_params['HTIME_START'] = self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STaRt?")
+        sweep_params['HTIME_STOP'] = self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STOP?")
+        # Add here the command for 'RETURN' when it is known
+        # sweep_params['RETURN'] = self.interface.read(f"SOURce{channel}:???")
+
+        return sweep_params
+
+    def set_sweep_parameters(self, channel: int, sweep_params: dict):
+        """
+        Sets the sweep parameters on the device.
+
+        Args:
+            channel (int): The output channel to set.
+            sweep_params (dict): Dictionary of parameters for sweep mode.
+        """
+        if sweep_params.get('FSTART') is not None:
+            self.interface.write(f"SOURce{channel}:FREQuency:STARt {sweep_params['FSTART']}")
+        if sweep_params.get('FSTOP') is not None:
+            self.interface.write(f"SOURce{channel}:FREQuency:STOP {sweep_params['FSTOP']}")
+        if sweep_params.get('TIME') is not None:
+            self.interface.write(f"SOURce{channel}:SWEEp:TIME {sweep_params['TIME']}")
+        if sweep_params.get('RTIME') is not None:
+            self.interface.write(f"SOURce{channel}:SWEEp:RTIMe {sweep_params['RTIME']}")
+        if sweep_params.get('HTIME_START') is not None:
+            self.interface.write(f"SOURce{channel}:SWEEp:HTIMe:STaRt {sweep_params['HTIME_START']}")
+        if sweep_params.get('HTIME_STOP') is not None:
+            self.interface.write(f"SOURce{channel}:SWEEp:HTIMe:STOP {sweep_params['HTIME_STOP']}")
 
     def get_status(self, channel: int) -> str:
         status = []
@@ -415,3 +455,8 @@ class DG4202MockInterface(DG4202Interface):
 
     def simulate_kill(self, kill: bool) -> None:
         self.killed = kill
+
+
+if __name__ == "__main__":
+    my_generator = DG4202Detector().detect_device()
+    print(my_generator.get_sweep_parameters(1))
