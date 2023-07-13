@@ -269,7 +269,7 @@ class DashboardPage(BasePage):
             },
         )
 
-    def generate_sweep_control(self, channel: int) -> dbc.Col:
+    def generate_sweep_control(self, channel: int) -> dbc.Row:
         """
         Generate the control components for the sweep mode.
 
@@ -277,30 +277,62 @@ class DashboardPage(BasePage):
             channel (int): The channel number.
 
         Returns:
-            dbc.Col: The column containing the sweep control components.
+            dbc.Row: The row containing the sweep control components.
         """
-        return dbc.Row([
-            dbc.Col([
-                #html.Div(id=f"sweep-message-{channel}"),
-                create_input(id=f"sweep-duration-{channel}",
-                             label="Sweep (s)",
-                             placeholder=f"Sweep duration frequency CH{channel}"),
-                create_input(id=f"sweep-return-{channel}",
-                             label="Return (ms)",
-                             placeholder=f"Sweep return time CH{channel}"),
-                create_input(id=f"sweep-start-{channel}",
-                             label="Start (Hz)",
-                             placeholder=f"Sweep start frequency CH{channel}"),
-                create_input(id=f"sweep-stop-{channel}",
-                             label="Stop (Hz)",
-                             placeholder=f"Sweep stop frequency CH{channel}"),
-            ]),
-            dbc.Col([
-                create_button(id=f"sweep-parameters-btn-{channel}",
-                              label=f"Set Parameters CH{channel}"),
-            ]),
-            dbc.Col([html.Div("", id="indicator")])
+        sweep_plot = dcc.Graph(
+            id=f"sweep-plot-{channel}",
+            figure=plotter.plot_sweep(
+                params=self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]),
+            style={
+                "height": "250px",
+                "width": "400px",
+                "margin-left": "auto",
+                "margin-right": "auto",
+                "display": "block"
+            }  # Adjust the height to your desired value
+        )
+
+        channel_row = dbc.Row([
+            dbc.Col(
+                [
+                    create_input(id=f"sweep-duration-{channel}",
+                                 label="Sweep (s)",
+                                 placeholder=f"Sweep duration frequency CH{channel}",
+                                 default_value=self.all_parameters[f"{channel}"]["mode"]
+                                 ["parameters"]["sweep"]["TIME"]),
+                    create_input(id=f"sweep-return-{channel}",
+                                 label="Return (ms)",
+                                 placeholder=f"Sweep return time CH{channel}",
+                                 default_value=self.all_parameters[f"{channel}"]["mode"]
+                                 ["parameters"]["sweep"]["RTIME"]),
+                    create_input(id=f"sweep-start-{channel}",
+                                 label="Start (Hz)",
+                                 placeholder=f"Sweep start frequency CH{channel}",
+                                 default_value=self.all_parameters[f"{channel}"]["mode"]
+                                 ["parameters"]["sweep"]["FSTART"]),
+                    create_input(id=f"sweep-stop-{channel}",
+                                 label="Stop (Hz)",
+                                 placeholder=f"Sweep stop frequency CH{channel}",
+                                 default_value=self.all_parameters[f"{channel}"]["mode"]
+                                 ["parameters"]["sweep"]["FSTOP"]),
+                    dbc.Row(
+                        [
+                            dbc.Col(create_button(id=f"sweep-parameters-btn-{channel}",
+                                                  label=f"Set Parameters CH{channel}"),
+                                    md=4)
+                        ],
+                        className="my-2",
+                    )
+                ],
+                md=6  # Set column width to 6 out of 12
+            ),
+            dbc.Col(
+                [sweep_plot],
+                md=6,  # Set column width to 6 out of 12
+                align="center")
         ])
+
+        return channel_row
 
     def generate_waveform_control(self, channel: int) -> dbc.Row:
         """
@@ -315,16 +347,11 @@ class DashboardPage(BasePage):
 
         # Timer Modal
 
-        waveform_plot = dcc.Graph(
-            id=f"waveform-plot-{channel}",
-            figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"]),
-            style={
-                "height": "250px",
-                "width": "400px",
-                "margin-left": "auto",
-                "margin-right": "auto",
-                "display": "block"
-            }  # Adjust the height to your desired value
+        waveform_plot = plotter.plot_waveform(
+            waveform_type=self.all_parameters[f"{channel}"]["waveform"]["waveform_type"],
+            frequency=self.all_parameters[f"{channel}"]["waveform"]["frequency"],
+            amplitude=self.all_parameters[f"{channel}"]["waveform"]["amplitude"],
+            offset=self.all_parameters[f"{channel}"]["waveform"]["offset"],
         )
 
         channel_row = dbc.Row(  # A Row that will hold two Columns
@@ -453,31 +480,35 @@ class DashboardPage(BasePage):
             else:
                 return NOT_FOUND_STRING, dash.no_update, dash.no_update
 
-        def update_sweep_parameters(channel: int, n_clicks: int, sweep: str, rtime: str,
-                                    fstart: str, fstop: str):
+        def update_sweep(channel: int, n_clicks: int, sweep: str, rtime: str, fstart: str,
+                         fstop: str):
             status_string = f"{channel}"
-            if self.get_all_parameters():
-                sweep = float(sweep) if sweep else float(
-                    self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["TIME"])
-                rtime = float(rtime) if rtime else float(
-                    self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["RTIME"])
-                fstart = float(fstart) if fstart else float(
-                    self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
-                fstop = float(fstop) if fstop else float(
-                    self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
-                params = {"TIME": sweep, "RTIME": rtime, "FSTART": fstart, "FSTOP": fstop}
-                print(params)
-                # If a parameter is not set, pass the current value
-                self.my_generator.set_sweep_parameters(channel, params)
+            print("PING")
+            if n_clicks:
+                if self.get_all_parameters():
+                    sweep = float(sweep) if sweep else float(
+                        self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["TIME"])
+                    rtime = float(rtime) if rtime else float(
+                        self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["RTIME"])
+                    fstart = float(fstart) if fstart else float(
+                        self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
+                    fstop = float(fstop) if fstop else float(
+                        self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
+                    params = {"TIME": sweep, "RTIME": rtime, "FSTART": fstart, "FSTOP": fstop}
+                    print(params)
+                    # If a parameter is not set, pass the current value
+                    self.my_generator.set_sweep_parameters(channel, params)
 
-                if self.link_channel:
-                    self.my_generator.set_sweep_parameters(2 if channel == 1 else 1, params)
+                    if self.link_channel:
+                        self.my_generator.set_sweep_parameters(2 if channel == 1 else 1, params)
 
-                status_string = f"[{datetime.now().isoformat()}] Sweep parameters updated."
-
-                return status_string
+                    status_string = f"[{datetime.now().isoformat()}] Sweep parameters updated."
+                    figure = plotter.plot_sweep(fstart, fstop, sweep)
+                    return status_string, figure
+                else:
+                    return NOT_FOUND_STRING, dash.no_update
             else:
-                return NOT_FOUND_STRING
+                return dash.no_update, dash.no_update
 
         # calls the individual functionality
         def update_channel(channel: int, n_clicks_waveform: int, n_clicks_on_off: int,
@@ -514,7 +545,6 @@ class DashboardPage(BasePage):
             return store_data
 
         def update_mode(channel, tab):
-            print(f"{tab}")
             self.my_generator.set_mode(channel=channel, mode=STRING_TO_MODE[tab], mod_type=None)
             self.my_generator.output_on_off(channel, False)
 
@@ -597,12 +627,13 @@ class DashboardPage(BasePage):
 
             self.app.callback(
                 Output(f"debug-sweep-{channel}", "children"),
+                Output(f"sweep-plot-{channel}", "figure"),
                 Input(f"sweep-parameters-btn-{channel}", "n_clicks"),
                 State(f"sweep-duration-{channel}", "value"),
                 State(f"sweep-return-{channel}", "value"),
                 State(f"sweep-start-{channel}", "value"),
                 State(f"sweep-stop-{channel}", "value"),
-            )(functools.partial(update_sweep_parameters, channel))
+            )(functools.partial(update_sweep, channel))
 
         @self.app.callback(Output('connection-status', 'children'),
                            Input('global-ticker', 'n_intervals'))

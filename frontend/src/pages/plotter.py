@@ -8,7 +8,7 @@ def plot_waveform(waveform_type: Optional[str] = None,
                   frequency: Optional[float] = None,
                   amplitude: Optional[float] = None,
                   offset: Optional[float] = None,
-                  params: Optional[Dict[str, Union[str, float]]] = None) -> Figure:
+                  params: dict = None) -> Figure:
     """
     Generate and plot different types of waveforms.
 
@@ -56,5 +56,43 @@ def plot_waveform(waveform_type: Optional[str] = None,
 
     # Create a plotly figure with x and y values
     figure = go.Figure(data=go.Scatter(x=x_values, y=y_values))
+
+    return figure
+
+
+def plot_sweep(start_frequency: Optional[float] = None,
+               stop_frequency: Optional[float] = None,
+               duration: Optional[float] = None,
+               params: dict = None) -> Figure:
+    """
+    Generate and plot a frequency sweep.
+
+    Parameters:
+        start_frequency (float): Starting frequency of the sweep.
+        stop_frequency (float): Stopping frequency of the sweep.
+        duration (float): Duration of the sweep.
+        params (dict, optional): Optional dictionary containing sweep parameters. If provided, the individual parameters
+                                 will be extracted from this dictionary. Defaults to None.
+
+    Returns:
+        figure (plotly.graph_objs.Figure): Plotly figure object containing the generated sweep plot.
+    """
+    if params is not None:
+        # If parameters are provided as a dictionary, extract the values
+        start_frequency = float(params["FSTART"])
+        stop_frequency = float(params["FSTOP"])
+        duration = float(params["TIME"])
+
+    # Generate time values based on duration with 1000 points
+    t_values = np.linspace(0, duration, 1000)
+
+    # Generate a linearly increasing frequency array
+    frequency_values = np.linspace(start_frequency, stop_frequency, len(t_values))
+
+    # Generate y values based on the time-varying frequency
+    y_values = np.sin(2 * np.pi * np.cumsum(frequency_values) * np.mean(np.diff(t_values)))
+
+    # Create a plotly figure with t (time) and y values
+    figure = go.Figure(data=go.Scatter(x=t_values, y=y_values))
 
     return figure

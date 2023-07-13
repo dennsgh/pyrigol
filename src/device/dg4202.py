@@ -279,12 +279,14 @@ class DG4202:
             dict: A dictionary containing the sweep parameters.
         """
         sweep_params = {}
-        sweep_params['FSTART'] = self.interface.read(f"SOURce{channel}:FREQuency:STARt?")
-        sweep_params['FSTOP'] = self.interface.read(f"SOURce{channel}:FREQuency:STOP?")
-        sweep_params['TIME'] = self.interface.read(f"SOURce{channel}:SWEEp:TIME?")
-        sweep_params['RTIME'] = self.interface.read(f"SOURce{channel}:SWEEp:RTIMe?")
-        sweep_params['HTIME_START'] = self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STaRt?")
-        sweep_params['HTIME_STOP'] = self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STOP?")
+        sweep_params['FSTART'] = float(self.interface.read(f"SOURce{channel}:FREQuency:STARt?"))
+        sweep_params['FSTOP'] = float(self.interface.read(f"SOURce{channel}:FREQuency:STOP?"))
+        sweep_params['TIME'] = float(self.interface.read(f"SOURce{channel}:SWEEp:TIME?"))
+        sweep_params['RTIME'] = float(self.interface.read(f"SOURce{channel}:SWEEp:RTIMe?"))
+        sweep_params['HTIME_START'] = float(
+            self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STaRt?"))
+        sweep_params['HTIME_STOP'] = float(
+            self.interface.read(f"SOURce{channel}:SWEEp:HTIMe:STOP?"))
         # Add here the command for 'RETURN' when it is known
         # sweep_params['RETURN'] = self.interface.read(f"SOURce{channel}:???")
 
@@ -342,10 +344,10 @@ class DG4202:
         offset = self.interface.read(f"SOURce{channel}:VOLTage:LEVel:IMMediate:OFFSet?")
 
         return {
-            'waveform_type': waveform_type,
-            'frequency': frequency,
-            'amplitude': amplitude,
-            'offset': offset,
+            'waveform_type': str(waveform_type),
+            'frequency': float(frequency),
+            'amplitude': float(amplitude),
+            'offset': float(offset),
         }
 
     def is_connection_alive(self) -> bool:
