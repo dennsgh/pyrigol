@@ -281,7 +281,7 @@ class DG4202:
         return ', '.join(status)
 
     def get_output_status(self, channel: int) -> str:
-        return 'ON' if self.interface.read(f"OUTPut{channel}?") == '1' else 'OFF'
+        return 'ON' if self.interface.read(f"OUTPut{channel}?").strip() in ['1', 'ON'] else 'OFF'
 
     def get_waveform_parameters(self, channel: int) -> dict:
         """_summary_

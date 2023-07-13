@@ -349,16 +349,22 @@ class DashboardPage(BasePage):
             """
             if n_clicks:
                 # Toggle the main channel
-                set_to = False if self.all_parameters[f"{channel}"][
-                    "output_status"] == 'ON' else True
-                self.my_generator.output_on_off(channel, set_to)
-                # on link set to the current channel's settings
-                if self.link_channel:
-                    self.my_generator.output_on_off(2 if channel == 1 else 1, set_to)
-                return f"[{datetime.now().isoformat()}] Output turned {self.all_parameters[f'{channel}']['output_status']}.", dash.no_update, [
-                    ON_INDICATOR
-                    if self.all_parameters[f"{channel}"]["output_status"] == 'ON' else OFF_INDICATOR
-                ]
+                if self.get_all_parameters():
+                    set_to = False if self.all_parameters[f"{channel}"][
+                        "output_status"] == 'ON' else True
+                    print(
+                        f'{channel} is {self.all_parameters[f"{channel}"]["output_status"]} -> {set_to}'
+                    )
+                    self.my_generator.output_on_off(channel, set_to)
+                    # on link set to the current channel's settings
+                    if self.link_channel:
+                        self.my_generator.output_on_off(2 if channel == 1 else 1, set_to)
+                    return f"[{datetime.now().isoformat()}] Output turned {self.all_parameters[f'{channel}']['output_status']}.", dash.no_update, [
+                        ON_INDICATOR if self.all_parameters[f"{channel}"]["output_status"] == 'ON'
+                        else OFF_INDICATOR
+                    ]
+
+                return [f"{NOT_FOUND_STRING}"], dash.no_update, dash.no_update
             return dash.no_update, dash.no_update, dash.no_update
 
         def update_waveform(channel: int, set_waveform_clicks: int, waveform_type: str,
