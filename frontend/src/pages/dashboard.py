@@ -465,22 +465,13 @@ class DashboardPage(BasePage):
                     self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
                 fstop = float(fstop) if fstop else float(
                     self.all_parameters[f"{channel}"]["mode"]["parameters"]["sweep"]["FSTART"])
-
+                params = {"TIME": sweep, "RTIME": rtime, "FSTART": fstart, "FSTOP": fstop}
+                print(params)
                 # If a parameter is not set, pass the current value
-                self.my_generator.set_sweep_parameters(channel, {
-                    "TIME": sweep,
-                    "RTIME": rtime,
-                    "FSTART": fstart,
-                    "FSTOP": fstop
-                })
+                self.my_generator.set_sweep_parameters(channel, params)
 
                 if self.link_channel:
-                    self.my_generator.set_sweep_parameters(2 if channel == 1 else 1, {
-                        "TIME": sweep,
-                        "RTIME": rtime,
-                        "FSTART": fstart,
-                        "FSTOP": fstop
-                    })
+                    self.my_generator.set_sweep_parameters(2 if channel == 1 else 1, params)
 
                 status_string = f"[{datetime.now().isoformat()}] Sweep parameters updated."
 
@@ -533,7 +524,7 @@ class DashboardPage(BasePage):
                                            mod_type=None)
                 self.my_generator.output_on_off(2 if channel == 1 else 1, False)
             if self.get_all_parameters():
-                return [f"Mode is {self.all_parameters[f'{channel}']['mode']['mode']}."]
+                return [f"Mode is {self.all_parameters[f'{channel}']['mode']['current_mode']}."]
             return ""
 
         def update_scheduler_time(channel, is_open):
@@ -608,9 +599,9 @@ class DashboardPage(BasePage):
                 Output(f"debug-sweep-{channel}", "children"),
                 Input(f"sweep-parameters-btn-{channel}", "n_clicks"),
                 State(f"sweep-duration-{channel}", "value"),
-                State(f"waveform-return-{channel}", "value"),
-                State(f"waveform-start-{channel}", "value"),
-                State(f"waveform-stop-{channel}", "value"),
+                State(f"sweep-return-{channel}", "value"),
+                State(f"sweep-start-{channel}", "value"),
+                State(f"sweep-stop-{channel}", "value"),
             )(functools.partial(update_sweep_parameters, channel))
 
         @self.app.callback(Output('connection-status', 'children'),
