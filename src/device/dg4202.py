@@ -178,8 +178,13 @@ class DG4202:
             mode (str): The mode to set. Supported values: 'sweep', 'burst', 'mod', 'off'.
             mod_type (str, optional): The modulation type. Required when mode is 'mod'. Defaults to None.
         """
+        if isinstance(self.interface, DG4202MockInterface):
+            self.interface.write(f"SOURce{channel}:BURSt:STATe OFF")
+            self.interface.write(f"SOURce{channel}:MOD:STATe OFF")
+
         if mode.lower() == "sweep":
             self.interface.write(f"SOURce{channel}:SWEEp:STATe ON")
+
         elif mode.lower() == "burst":
             self.interface.write(f"SOURce{channel}:BURSt:STATe ON")
         elif mode.lower() == "mod":
@@ -279,7 +284,7 @@ class DG4202:
             dict: A dictionary containing the sweep parameters.
         """
         sweep_params = {}
-        sweep_params['FSTART'] = float(self.interface.read(f"SOURce{channel}:FREQuency:STARt?"))
+        sweep_params['FSTART'] = float(self.interface.read(f"SOURce{channel}:FREQuency:STaRt?"))
         sweep_params['FSTOP'] = float(self.interface.read(f"SOURce{channel}:FREQuency:STOP?"))
         sweep_params['TIME'] = float(self.interface.read(f"SOURce{channel}:SWEEp:TIME?"))
         sweep_params['RTIME'] = float(self.interface.read(f"SOURce{channel}:SWEEp:RTIMe?"))
@@ -301,7 +306,7 @@ class DG4202:
             sweep_params (dict): Dictionary of parameters for sweep mode.
         """
         if sweep_params.get('FSTART') is not None:
-            self.interface.write(f"SOURce{channel}:FREQuency:STARt {sweep_params['FSTART']}")
+            self.interface.write(f"SOURce{channel}:FREQuency:STaRt {sweep_params['FSTART']}")
         if sweep_params.get('FSTOP') is not None:
             self.interface.write(f"SOURce{channel}:FREQuency:STOP {sweep_params['FSTOP']}")
         if sweep_params.get('TIME') is not None:
@@ -376,8 +381,13 @@ class DG4202StateMachine(DG4202):
             "SOURce1:VOLTage:LEVel:IMMediate:AMPLitude": "3.3",
             "SOURce1:VOLTage:LEVel:IMMediate:OFFSet": "0.0",
             "SOURce1:SWEEp:STARt": "0",
+            "SOURce1:FREQuency:STOP": "0",
+            "SOURce1:FREQuency:STaRt": "0",
             "SOURce1:SWEEp:STOP": "0",
-            "SOURce1:SWEEp:TIME": "0",
+            "SOURce1:SWEEp:TIME": "1.0",
+            "SOURce1:SWEEp:HTIMe:STaRt": "0",
+            "SOURce1:SWEEp:HTIMe:STOP": "0",
+            "SOURce1:SWEEp:RTIMe": "0",
             "SOURce1:SWEEp:SPAC": "0",
             "SOURce1:BURSt:NCYC": "0",
             "SOURce1:BURSt:MODE": "0",
@@ -397,8 +407,13 @@ class DG4202StateMachine(DG4202):
             "SOURce2:VOLTage:LEVel:IMMediate:AMPLitude": "3.3",
             "SOURce2:VOLTage:LEVel:IMMediate:OFFSet": "0.0",
             "SOURce2:SWEEp:STARt": "0",
+            "SOURce2:FREQuency:STOP": "0",
+            "SOURce2:FREQuency:STaRt": "0",
             "SOURce2:SWEEp:STOP": "0",
-            "SOURce2:SWEEp:TIME": "0",
+            "SOURce2:SWEEp:TIME": "1.0",
+            "SOURce2:SWEEp:HTIMe:STaRt": "0",
+            "SOURce2:SWEEp:HTIMe:STOP": "0",
+            "SOURce2:SWEEp:RTIMe": "0",
             "SOURce2:SWEEp:SPAC": "0",
             "SOURce2:BURSt:NCYC": "0",
             "SOURce2:BURSt:MODE": "0",

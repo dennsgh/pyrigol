@@ -13,14 +13,13 @@ from pages import factory, plotter
 from datetime import datetime, timedelta
 from dash.exceptions import PreventUpdate
 
+from pprint import pprint
+
 NOT_FOUND_STRING = 'Device not found!'
 TIMER_INTERVAL = 1000.  # in ms
 TIMER_INTERVAL_S = TIMER_INTERVAL / 1000.  # in ms
 
 DEFAULT_TAB_STYLE = {'height': '30px', 'padding': '2px'}
-
-STRING_TO_MODE = {"default": "off", "sweep": "sweep", "mod": "mod", "burst": "burst"}
-MODE_TO_STRING = {value: key for key, value in STRING_TO_MODE.items()}
 
 
 class DashboardPage(BasePage):
@@ -117,7 +116,7 @@ class DashboardPage(BasePage):
             }
 
             self.tab_children[f"{channel}"] = {
-                "default": [
+                "off": [
                     html.Div([
                         html.Div(id=f"debug-default-{channel}"),
                         self.channel_layouts[str(channel)]["off"],
@@ -137,30 +136,26 @@ class DashboardPage(BasePage):
 
             self.content.append(
                 dbc.Row([
-                    html.Div(
-                        [
-                            html.Div(id=f"mode-message-{channel}"),
-                            dcc.Tabs(
-                                id=f"mode-tabs-{channel}",
-                                value=MODE_TO_STRING[self.all_parameters[f"{channel}"]["mode"][
-                                    "current_mode"]],  # this needs to take the value either default or sweep!
-                                children=[
-                                    dcc.Tab(
-                                        label='Default',
-                                        value='default',
-                                        children=self.tab_children[f"{channel}"]["default"],
-                                    ),
-                                    dcc.Tab(
-                                        label='Sweep',
-                                        value='sweep',
-                                        children=self.tab_children[f"{channel}"]["sweep"],
-                                    ),
-                                ],
-                                style={}),
-                            self.channel_layouts[str(channel)]["control"]
-                        ],
-                        id=f"channel-wrapper-{channel}",
-                        style={})
+                    html.Div([
+                        html.Div(id=f"mode-message-{channel}"),
+                        dcc.Tabs(id=f"mode-tabs-{channel}",
+                                 value=self.all_parameters[f"{channel}"]["mode"]["current_mode"],
+                                 children=[
+                                     dcc.Tab(
+                                         label='Default',
+                                         value='off',
+                                         children=self.tab_children[f"{channel}"]["off"],
+                                     ),
+                                     dcc.Tab(
+                                         label='Sweep',
+                                         value='sweep',
+                                         children=self.tab_children[f"{channel}"]["sweep"],
+                                     ),
+                                 ],
+                                 style={}), self.channel_layouts[str(channel)]["control"]
+                    ],
+                             id=f"channel-wrapper-{channel}",
+                             style={})
                 ]))
 
             self.tab_children["options"] = [
@@ -454,6 +449,7 @@ class DashboardPage(BasePage):
             Returns:
                 tuple: A tuple containing the status string and the waveform plot figure.
             """
+            print("Waveform_update")
             status_string = f"{channel}"
             if self.get_all_parameters():
                 frequency = float(frequency) if frequency else float(
@@ -544,18 +540,20 @@ class DashboardPage(BasePage):
                 store_data["status"] = "stopped"
             return store_data
 
-        def update_mode(channel, tab):
-            self.my_generator.set_mode(channel=channel, mode=STRING_TO_MODE[tab], mod_type=None)
-            self.my_generator.output_on_off(channel, False)
+        def update_mode(channel, tab: str):
+            if tab:
+                print(f"{channel}-{tab}")
+                self.my_generator.set_mode(channel=channel, mode=tab.strip(), mod_type=None)
+                self.my_generator.output_on_off(channel, False)
 
-            if self.link_channel:
-                self.my_generator.set_mode(2 if channel == 1 else 1,
-                                           mode=STRING_TO_MODE[tab],
-                                           mod_type=None)
-                self.my_generator.output_on_off(2 if channel == 1 else 1, False)
-            if self.get_all_parameters():
-                return [f"Mode is {self.all_parameters[f'{channel}']['mode']['current_mode']}."]
-            return ""
+                if self.link_channel:
+                    self.my_generator.set_mode(2 if channel == 1 else 1, mode=tab, mod_type=None)
+                    self.my_generator.output_on_off(2 if channel == 1 else 1, False)
+                if self.get_all_parameters():
+                    return [f"Mode is {self.all_parameters[f'{channel}']['mode']['current_mode']}."]
+                return ""
+            else:
+                return dash.no_update
 
         def update_scheduler_time(channel, is_open):
             if is_open:
@@ -639,6 +637,7 @@ class DashboardPage(BasePage):
                            Input('global-ticker', 'n_intervals'))
         def global_ticker(n):
             if self.get_all_parameters():
+                print(self.all_parameters)
                 return ["Device Connected"]
             else:
                 return ["Device Not Found."]
