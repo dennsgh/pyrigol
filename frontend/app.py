@@ -17,7 +17,7 @@ from datetime import timedelta
 import os
 
 
-def create_app(args_dict):
+def create_app(args_dict: dict):
     app = dash.Dash(__name__,
                     external_stylesheets=[dbc.themes.BOOTSTRAP],
                     meta_tags=[{
@@ -107,10 +107,6 @@ def create_app(args_dict):
     return app
 
 
-def run_dash_application(app, args_dict, stop_event):
-    waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
-
-
 def run_flask_app(app, host, port, stop_event):
     flask_server = make_server(host, port, app.server)
     flask_server.serve_forever()
@@ -120,11 +116,6 @@ def run_api_server(dg4202, server_port, stop_event):
     # Your function to start the API server
     api = DG4202APIServer(dg4202=dg4202, server_port=server_port)
     api.run()
-
-
-def signal_handler(sig, frame):
-    print('Interrupt signal received. Shutting down...')
-    os._exit(0)
 
 
 def run_application():
