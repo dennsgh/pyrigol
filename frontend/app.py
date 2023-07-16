@@ -116,9 +116,9 @@ def run_flask_app(app, host, port, stop_event):
     flask_server.serve_forever()
 
 
-def run_api_server(dg4202_interface, server_port, stop_event):
+def run_api_server(dg4202, server_port, stop_event):
     # Your function to start the API server
-    api = DG4202APIServer(dg4202_interface=dg4202_interface, server_port=server_port)
+    api = DG4202APIServer(dg4202=dg4202, server_port=server_port)
     api.run()
 
 
@@ -174,7 +174,7 @@ def run_application():
             # TODO create callback for interface refresh
             # Start the API server in another thread
             api_thread = threading.Thread(target=run_api_server,
-                                          args=(factory.create_dg4202(args_dict).interface,
+                                          args=(factory.create_dg4202(args_dict),
                                                 args_dict['api_server'], stop_event))
             #api_thread.daemon = True
             threads.append(api_thread)

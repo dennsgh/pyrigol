@@ -1,4 +1,4 @@
-from device.dg4202 import DG4202, DG4202Detector, DG4202MockInterface, DG4202StateMachine
+from device.dg4202 import DG4202, DG4202Detector, DG4202Mock
 from datetime import datetime, timedelta
 import time
 
@@ -7,9 +7,7 @@ start_time = time.time()
 last_known_device_uptime = None
 dg4202_device = None
 
-DG4202_FSM = DG4202StateMachine()
-DG4202_MOCK_INTERFACE = DG4202MockInterface(DG4202_FSM)
-DG4202_MOCK_DEVICE = DG4202(DG4202_MOCK_INTERFACE)
+DG4202_MOCK_DEVICE = DG4202Mock()
 
 
 def get_uptime():
@@ -26,7 +24,7 @@ def create_dg4202(args_dict: dict) -> DG4202:
     global last_known_device_uptime  # To set the start of the uptime
 
     if args_dict['hardware_mock']:
-        if DG4202_MOCK_INTERFACE.killed:
+        if DG4202_MOCK_DEVICE.killed:
             # Simulate dead device
             last_known_device_uptime = None
             return None

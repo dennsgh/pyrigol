@@ -99,8 +99,8 @@ class DashboardPage(BasePage):
         self.is_timer_running = False
 
         self.my_generator = factory.create_dg4202(self.args_dict)
-        self.tab_children = {}
-        self.channel_layouts = {}  # The static layouts (contains layout variables)
+        self.tab_children = {}  # Holds the layouts for each tab.
+        self.channel_layouts = {}  # Holds the objects
         self.content = []  # layout shown on page
         is_connected = self.get_all_parameters()
 
@@ -133,7 +133,7 @@ class DashboardPage(BasePage):
                              style={})
                 ],
             }
-
+            print(self.all_parameters[f"{channel}"]["mode"]["current_mode"])
             self.content.append(
                 dbc.Row([
                     html.Div([
@@ -341,13 +341,16 @@ class DashboardPage(BasePage):
         """
 
         # Timer Modal
-
-        waveform_plot = plotter.plot_waveform(
-            waveform_type=self.all_parameters[f"{channel}"]["waveform"]["waveform_type"],
-            frequency=self.all_parameters[f"{channel}"]["waveform"]["frequency"],
-            amplitude=self.all_parameters[f"{channel}"]["waveform"]["amplitude"],
-            offset=self.all_parameters[f"{channel}"]["waveform"]["offset"],
-        )
+        waveform_plot = sweep_plot = dcc.Graph(
+            id=f"waveform-plot-{channel}",
+            figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"],),
+            style={
+                "height": "250px",
+                "width": "400px",
+                "margin-left": "auto",
+                "margin-right": "auto",
+                "display": "block"
+            })  # Adjust the height to your desired value)
 
         channel_row = dbc.Row(  # A Row that will hold two Columns
             [
@@ -411,7 +414,6 @@ class DashboardPage(BasePage):
             Returns:
                 str: The updated status string.
             """
-            print(n_clicks)
             # For some reason n_clicks is always None when defined like this.
             if n_clicks:
                 # Toggle the main channel
@@ -449,7 +451,6 @@ class DashboardPage(BasePage):
             Returns:
                 tuple: A tuple containing the status string and the waveform plot figure.
             """
-            print("Waveform_update")
             status_string = f"{channel}"
             if self.get_all_parameters():
                 frequency = float(frequency) if frequency else float(
@@ -479,7 +480,6 @@ class DashboardPage(BasePage):
         def update_sweep(channel: int, n_clicks: int, sweep: str, rtime: str, fstart: str,
                          fstop: str):
             status_string = f"{channel}"
-            print("PING")
             if n_clicks:
                 if self.get_all_parameters():
                     sweep = float(sweep) if sweep else float(
@@ -553,7 +553,7 @@ class DashboardPage(BasePage):
                     return [f"Mode is {self.all_parameters[f'{channel}']['mode']['current_mode']}."]
                 return ""
             else:
-                return dash.no_update
+                return ""
 
         def update_scheduler_time(channel, is_open):
             if is_open:
@@ -637,7 +637,6 @@ class DashboardPage(BasePage):
                            Input('global-ticker', 'n_intervals'))
         def global_ticker(n):
             if self.get_all_parameters():
-                print(self.all_parameters)
                 return ["Device Connected"]
             else:
                 return ["Device Not Found."]

@@ -366,7 +366,35 @@ class DG4202:
             return False
 
 
-class DG4202StateMachine(DG4202):
+class DG4202Mock(DG4202):
+
+    def __init__(self):
+        # pass simulated interface
+        self.killed = False
+        super().__init__(DG4202MockInterface())
+
+    def simulate_kill(self, kill: bool):
+        self.killed = kill
+
+    def killed_state_method(self, *args, **kwargs):
+        raise Exception("Device is disconnected!")
+
+    def __getattribute__(self, name):
+        # Only block methods that actually perform operations
+        blocked_methods = {
+            "set_waveform", "turn_off_modes", "check_status", "output_on_off", "set_mode",
+            "set_modulation_mode", "set_burst_mode", "set_sweep_mode", "get_mode",
+            "get_sweep_parameters", "set_sweep_parameters", "get_status", "get_output_status",
+            "get_waveform_parameters", "is_connection_alive"
+        }
+
+        if object.__getattribute__(self, "killed") and name in blocked_methods:
+            return self.killed_state_method
+        else:
+            return object.__getattribute__(self, name)
+
+
+class DG4202MockInterface(DG4202Interface):
 
     def __init__(self):
         self.state = {
@@ -432,7 +460,6 @@ class DG4202StateMachine(DG4202):
                 "SOURce2:BURSt:STATe ON", "SOURce2:MOD:STATe ON"
         ]:
             command, value = command.split()
-            print(f"setting {command} {value}")
             self.state[command] = '1'
         elif command in [
                 "OUTPut1 OFF", "SOURce1:SWEEp:STATe OFF", "SOURce1:BURSt:STATe OFF",
@@ -444,34 +471,12 @@ class DG4202StateMachine(DG4202):
         else:
             command, value = command.split()
             self.state[command] = value
+        print(f"setting {command} {value}")
 
     def read(self, command: str) -> str:
         if command.endswith("?"):
             command = command[:-1]
         return self.state.get(command, "").split(" ")[-1]
-
-
-class DG4202MockInterface(DG4202Interface):
-
-    def __init__(self, dg4202: DG4202StateMachine = None):
-        self.killed = False
-        if dg4202 is None:
-            self.dg4202 = DG4202StateMachine()
-        else:
-            self.dg4202 = dg4202
-
-    def write(self, command: str) -> None:
-        if self.killed:
-            return None
-        self.dg4202.write(command)
-
-    def read(self, command: str) -> str:
-        if self.killed:
-            return None
-        return self.dg4202.read(command)
-
-    def simulate_kill(self, kill: bool) -> None:
-        self.killed = kill
 
 
 if __name__ == "__main__":
