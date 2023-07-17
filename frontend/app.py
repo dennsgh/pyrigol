@@ -10,11 +10,9 @@ import waitress
 from callbacks import main_callbacks
 from threading import Barrier
 from werkzeug.serving import make_server
-
+import sys
 # At the top of the script:
 from datetime import timedelta
-
-import os
 
 
 def create_app(args_dict: dict):
@@ -116,6 +114,12 @@ def run_api_server(dg4202, server_port, stop_event):
     # Your function to start the API server
     api = DG4202APIServer(dg4202=dg4202, server_port=server_port)
     api.run()
+
+
+def signal_handler(signal, frame):
+    print("Exit signal detected.")
+    # Perform additional error handling actions here if needed
+    sys.exit(0)
 
 
 def run_application():
