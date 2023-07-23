@@ -8,11 +8,9 @@ from api.dg4202_api import DG4202APIServer
 import argparse
 import waitress
 from callbacks import main_callbacks
-from threading import Barrier
 from werkzeug.serving import make_server
 import sys
 # At the top of the script:
-from datetime import timedelta
 
 
 def create_app(args_dict: dict):
@@ -32,6 +30,8 @@ def create_app(args_dict: dict):
     app.title = "pyrigol"
 
     app.scripts.config.serve_locally = True
+    # Fresh start
+    factory.write_state({'last_known_device_uptime': None, 'dg4202_device': None})
 
     sidebar_header = dbc.Row([
         dbc.Col(html.H2("pyrigol", className="display-4")),
