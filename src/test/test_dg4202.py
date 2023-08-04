@@ -2,19 +2,19 @@ import pytest
 import requests
 import threading
 import flask
-from device.dg4202 import DG4202APIServer, DG4202StateMachine, DG4202MockInterface
+from device.dg4202 import DG4202, DG4202Mock
+from api.dg4202_api import DG4202APIServer
 
 endpoint = 'http://localhost:5000/api'
 
 
 @pytest.fixture(scope='module')
 def api():
-    dg4202 = DG4202StateMachine()
-    dg4202_interface = DG4202MockInterface(dg4202)
-    api = DG4202APIServer(dg4202_interface, 5000)
+    dg4202 = DG4202Mock()
+    api = DG4202APIServer(dg4202, 5000)
     threading.Thread(target=api.run).start()  # run Flask app in a separate thread
     yield api
-    requests.post(f'{endpoint}/stop')
+    #requests.post(f'{endpoint}/stop')
 
 
 def test_turn_on_and_off(api):
@@ -51,18 +51,21 @@ def test_change_waveform_parameters(api):
 
 def test_switch_modes(api):
     # Test turning on modulation
-    response = requests.post(f'{endpoint}/command', json={'command': 'SOURce1:MOD:STATe ON'})
+
+    command = 'SOURce1:MOD:STATe ON'
+    response = requests.post(f'{endpoint}/command', json={'command': command})
     assert response.status_code == 200
-    assert response.json()['status'] == 'command sent'
+    assert response.json()['status'] == f'{command} sent'
 
     response = requests.get(f'{endpoint}/state', params={'command': 'SOURce1:MOD:STATe'})
     assert response.status_code == 200
     assert response.json()['state'] == '1'
 
     # Test turning off modulation
-    response = requests.post(f'{endpoint}/command', json={'command': 'SOURce1:MOD:STATe OFF'})
+    command = 'SOURce1:MOD:STATe OFF'
+    response = requests.post(f'{endpoint}/command', json={'command': command})
     assert response.status_code == 200
-    assert response.json()['status'] == 'command sent'
+    assert response.json()['status'] == f'{command} sent'
 
     response = requests.get(f'{endpoint}/state', params={'command': 'SOURce1:MOD:STATe'})
     assert response.status_code == 200
