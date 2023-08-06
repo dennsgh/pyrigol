@@ -5,6 +5,7 @@ import time
 from features.scheduler import Scheduler
 from pathlib import Path
 import os
+import threading
 
 DG4202_MOCK_DEVICE = DG4202Mock()
 SCHEDULER = Scheduler()
@@ -12,6 +13,25 @@ JSON_FILE = Path(os.getenv("DATA"), "state.json")
 
 # we use a JSON file this to prevent conflicts when using global variables between different user accesses.
 app_start_time = time.time()
+dg4202_device = None
+
+
+def run_scheduler():
+
+    def print_message(str):
+        print(str)
+
+    SCHEDULER.add_action(datetime.now() + timedelta(seconds=5), print_message,
+                         {'msg': 'Hello, world!'})
+
+    start_thread = threading.Thread(
+        target=SCHEDULER.start)  # Start the scheduler in a separate thread
+    start_thread.start()
+
+    time.sleep(6)
+
+    stop_thread = threading.Thread(target=SCHEDULER.stop)  # Stop the scheduler in a separate thread
+    stop_thread.start()
 
 
 def read_state():
@@ -28,9 +48,9 @@ def read_state():
                 state = json.load(f)
                 return state
         else:
-            return {"last_known_device_uptime": None, "dg4202_device": None}
+            return {"last_known_device_uptime": None}
     except (FileNotFoundError, ValueError):
-        return {"last_known_device_uptime": None, "dg4202_device": None}
+        return {"last_known_device_uptime": None}
 
 
 def write_state(state):
@@ -67,6 +87,7 @@ def create_dg4202(args_dict: dict) -> DG4202:
     Returns:
         DG4202: A DG4202 device object.
     """
+    global dg4202_device
     state = read_state()
     if args_dict['hardware_mock']:
         if DG4202_MOCK_DEVICE.killed:

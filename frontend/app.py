@@ -31,7 +31,7 @@ def create_app(args_dict: dict):
 
     app.scripts.config.serve_locally = True
     # Fresh start
-    factory.write_state({'last_known_device_uptime': None, 'dg4202_device': None})
+    factory.write_state({'last_known_device_uptime': None})
 
     sidebar_header = dbc.Row([
         dbc.Col(html.H2("pyrigol", className="display-4")),
@@ -114,6 +114,8 @@ def run_api_server(dg4202, server_port, stop_event):
     # Your function to start the API server
     api = DG4202APIServer(dg4202=dg4202, server_port=server_port)
     api.run()
+
+
 
 
 def signal_handler(signal, frame):

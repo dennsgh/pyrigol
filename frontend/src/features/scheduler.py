@@ -1,8 +1,9 @@
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import os
+import threading  # import threading module
 
 JSON_FILE = Path(os.getenv("DATA"), "scheduler_state.json")
 
@@ -10,38 +11,33 @@ JSON_FILE = Path(os.getenv("DATA"), "scheduler_state.json")
 class Scheduler:
 
     def __init__(self):
-        self.ticks = 0
         self.is_running = True
         # Load actions from file, or initialize to empty list if no file exists
         self.actions = self.read_state()
 
     def start(self):
         while self.is_running:
-            t0 = time.perf_counter()
             self.check_timers()
-            t1 = time.perf_counter()
-            elapsed = t1 - t0
-            remaining = max(1 - elapsed,
-                            0)  # Calculate remaining time for sleep, ensuring it's not negative
-            time.sleep(remaining)  # Sleep for the remaining time
 
     def stop(self):
         self.is_running = False
 
     def check_timers(self):
-        self.ticks += 1
-        print(f"Tick: {self.ticks}")
-        for action in self.actions:
-            if self.ticks % action['time'] == 0:
-                print(f"Performing scheduled action: {action['action'].__name__}")
+        now = datetime.now()
+        for action in self.actions.copy():
+            target_time = datetime.strptime(action['time'], '%Y-%m-%d %H:%M:%S.%f')
+            if now >= target_time:
+                print(f"Performing scheduled action: {action['action']}")
                 action['action'](**action['kwargs'])  # Call the function with the provided kwargs
-                action['last_execution'] = str(datetime.now())
+                action['last_execution'] = str(now)
+                # Remove action after execution
+                self.actions.remove(action)
         # Save state after every check
         self.write_state()
 
     def add_action(self, time, action, kwargs):
         self.actions.append({
-            'time': time,
+            'time': str(time),  # 'time' will be a string
             'action': action,
             'kwargs': kwargs,
             'last_execution': None
@@ -71,5 +67,14 @@ if __name__ == "__main__":
         print(msg)
 
     scheduler = Scheduler()
-    scheduler.add_action(5, print_message, {'msg': 'Hello, world!'})
-    scheduler.start()
+    scheduler.add_action(datetime.now() + timedelta(seconds=5), print_message,
+                         {'msg': 'Hello, world!'})
+    print(scheduler.read_state())
+    start_thread = threading.Thread(
+        target=scheduler.start)  # Start the scheduler in a separate thread
+    start_thread.start()
+
+    time.sleep(6)
+
+    stop_thread = threading.Thread(target=scheduler.stop)  # Stop the scheduler in a separate thread
+    stop_thread.start()

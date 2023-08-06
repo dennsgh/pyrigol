@@ -12,6 +12,7 @@ plotly = "*"
 dash-bootstrap-components = "*"
 pyvisa = "*"
 pathlib = "*"
+python-dotenv = {version = "*", extras = ["cli"]}
 
 [dev-packages]
 
