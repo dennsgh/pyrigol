@@ -4,6 +4,7 @@ import dash.dcc.Store as Store
 import dash_bootstrap_components as dbc
 import time
 import threading
+from abc import ABC, abstractmethod
 
 ON_INDICATOR = dbc.Badge(" ", color="success", className="round")
 OFF_INDICATOR = dbc.Badge(" ", color="danger", className="round")
@@ -106,7 +107,7 @@ def create_button(id: str, label: str, default_value=None) -> dbc.Button:
     return dbc.Button(label, id=id, color="primary", className="m-2")
 
 
-class BasePage:
+class BasePage(ABC):
 
     def __init__(self, app: dash.Dash, args_dict: dict):
         self.app = app
@@ -114,17 +115,20 @@ class BasePage:
         # Create layout
         self.page_layout = self.layout()
         # Create page callbacks
-        # Callback that gets triggered by the trigger and updates the layout
-
         self.register_callbacks()
 
+    @abstractmethod
     def layout(self):
-        raise NotImplementedError("You should implement the 'layout' method!")
+        """Return the layout for the page. Should be implemented in subclasses."""
+        NotImplementedError("Page layout not implemented!")
 
     def update_layout(self, new_layout):
+        """Update the layout of the page."""
         self.page_layout = new_layout
 
+    @abstractmethod
     def register_callbacks(self):
+        """Register callbacks for the page. Should be implemented in subclasses."""
         pass
 
 

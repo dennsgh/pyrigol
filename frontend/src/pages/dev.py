@@ -18,3 +18,6 @@ class DevPage(BasePage):
             dcc.Markdown(children=markdown),
         ])
         return main_layout
+
+    def register_callbacks(self):
+        return super().register_callbacks()
