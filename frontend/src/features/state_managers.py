@@ -11,6 +11,7 @@ class StateManager:
 
     def __init__(self, json_file: Path = None):
         self.json_file = json_file or Path(os.getenv("DATA"), "state.json")
+        self.birthdate = time.time()
 
     def read_state(self) -> dict:
         try:
@@ -25,6 +26,17 @@ class StateManager:
     def write_state(self, state: dict):
         with open(self.json_file, 'w') as f:
             json.dump(state, f)
+
+    def get_uptime(self):
+        """
+        Function to get uptime from last known device uptime.
+
+        Returns:
+            str: Uptime in HH:MM:SS format if known, otherwise 'N/A'.
+        """
+        uptime_seconds = time.time() - self.birthdate
+        uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+        return uptime_str
 
 
 class DG4202Manager:
