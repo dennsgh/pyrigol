@@ -38,7 +38,7 @@ def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
         else:
             indicator = [OFF_INDICATOR]  # Red Badge for failure
 
-        app_uptime = [f"App Uptime : {factory.get_uptime()}"]
+        app_uptime = [f"App Uptime : {factory.state_manager.get_uptime()}"]
         device_uptime = [f"Device Uptime : {factory.dg4202_manager.get_device_uptime(args_dict)}"]
 
         return app_uptime, device_uptime, indicator

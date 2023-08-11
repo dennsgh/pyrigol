@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from device.dg4202 import DG4202Detector, DG4202Ethernet, DG4202USB  # change `yourmodule` to the name of your module
 
 
+@pytest.mark.hardware
 @patch('pyvisa.ResourceManager')
 def test_DG4202Detector_detect_device(mock_rm):
     # Mock the ResourceManager and its methods
@@ -22,6 +23,7 @@ def test_DG4202Detector_detect_device(mock_rm):
     assert isinstance(detected_device, DG4202Ethernet) or isinstance(detected_device, DG4202USB)
 
 
+@pytest.mark.hardware
 @patch('pyvisa.ResourceManager')
 def test_DG4202Ethernet_read_write(mock_rm):
     # Mock the ResourceManager and its methods
@@ -39,6 +41,7 @@ def test_DG4202Ethernet_read_write(mock_rm):
     assert read_response == "Mocked response"
 
 
+@pytest.mark.hardware
 @patch('pyvisa.ResourceManager')
 def test_DG4202USB_read_write(mock_rm):
     # Mock the ResourceManager and its methods

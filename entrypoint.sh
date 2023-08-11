@@ -29,4 +29,5 @@ else
 fi
 
 # Execute the main application with the composed arguments
+exec pipenv run bash $CONFIG/environment.sh
 exec pipenv run python main.py $ARGS

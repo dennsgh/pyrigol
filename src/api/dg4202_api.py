@@ -23,6 +23,13 @@ class DG4202APIServer:
         self.server_thread = None
         self.setup_routes()
 
+    def shutdown(self) -> None:
+        """
+        Shutdown the Flask application server.
+        """
+        if self.http_server:
+            self.http_server.shutdown()
+
     def setup_routes(self) -> None:
         """
         Setup Flask routes for the API.

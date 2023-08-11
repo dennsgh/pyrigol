@@ -52,7 +52,7 @@ class FunctionMap:
 
 class Scheduler:
     '''
-    Requires a functionmap to be usable.
+    Requires a function map to be usable.
     '''
     default_json = {"actions": [], "last_executed": None}
 
