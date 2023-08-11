@@ -48,7 +48,7 @@ class DashboardPage(BasePage):
 
     def check_connection(self) -> bool:
 
-        self.my_generator = factory.create_dg4202(args_dict=self.args_dict)
+        self.my_generator = factory.dg4202_manager.create_dg4202()
         if self.my_generator is not None:
             is_alive = self.my_generator.is_connection_alive()
             if not is_alive:
@@ -98,7 +98,7 @@ class DashboardPage(BasePage):
         self.is_scheduler_running = False
         self.is_timer_running = False
 
-        self.my_generator = factory.create_dg4202(self.args_dict)
+        self.my_generator = factory.dg4202_manager.create_dg4202()
         self.tab_children = {}  # Holds the layouts for each tab.
         self.channel_layouts = {}  # Holds the objects
         self.content = []  # layout shown on page
@@ -397,7 +397,7 @@ class DashboardPage(BasePage):
         return channel_row
 
     def reconnect(self):
-        self.my_generator = factory.create_dg4202(self.args_dict)
+        self.my_generator = factory.dg4202_manager.create_dg4202()
         print("Reconnecting...")
         return self.check_connection()
 

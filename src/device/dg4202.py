@@ -39,6 +39,7 @@ class DG4202Detector:
                         return DG4202(DG4202USB(resource))
                 except pyvisa.errors.VisaIOError:
                     pass
+
         return None
 
 
@@ -379,13 +380,27 @@ class DG4202Mock(DG4202):
     def killed_state_method(self, *args, **kwargs):
         raise Exception("Device is disconnected!")
 
+    def is_connection_alive(self) -> bool:
+        return not self.killed
+
     def __getattribute__(self, name):
         # Only block methods that actually perform operations
         blocked_methods = {
-            "set_waveform", "turn_off_modes", "check_status", "output_on_off", "set_mode",
-            "set_modulation_mode", "set_burst_mode", "set_sweep_mode", "get_mode",
-            "get_sweep_parameters", "set_sweep_parameters", "get_status", "get_output_status",
-            "get_waveform_parameters", "is_connection_alive"
+            "set_waveform",
+            "turn_off_modes",
+            "check_status",
+            "output_on_off",
+            "set_mode",
+            "set_modulation_mode",
+            "set_burst_mode",
+            "set_sweep_mode",
+            "get_mode",
+            "get_sweep_parameters",
+            "set_sweep_parameters",
+            "get_status",
+            "get_output_status",
+            "get_waveform_parameters",
+            #"is_connection_alive"
         }
 
         if object.__getattribute__(self, "killed") and name in blocked_methods:

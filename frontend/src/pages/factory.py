@@ -3,37 +3,27 @@ from device.dg4202 import DG4202, DG4202Detector, DG4202Mock
 from datetime import datetime, timedelta
 import time
 from features.scheduler import Scheduler
+from features.state_managers import StateManager, DG4202Manager
 from pathlib import Path
 import os
 import threading
 
-DG4202_MOCK_DEVICE = DG4202Mock()
-SCHEDULER = Scheduler()
-JSON_FILE = Path(os.getenv("DATA"), "state.json")
+#DG4202_MOCK_DEVICE = DG4202Mock()
+STATE_FILE = Path(os.getenv("DATA"), "state.json")
 
-# we use a JSON file this to prevent conflicts when using global variables between different user accesses.
 app_start_time = time.time()
-dg4202_device = None
+# ================================== Place holder globals, these are initialized in app.py
+state_manager: StateManager = None
+dg4202_manager: DG4202Manager = None
+DG4202SCHEDULER: Scheduler = None
+# ==================================
 
 
 def run_scheduler():
-
-    def print_message(str):
-        print(str)
-
-    SCHEDULER.add_action(datetime.now() + timedelta(seconds=5), print_message,
-                         {'msg': 'Hello, world!'})
-
-    start_thread = threading.Thread(
-        target=SCHEDULER.start)  # Start the scheduler in a separate thread
-    start_thread.start()
-
-    time.sleep(6)
-
-    stop_thread = threading.Thread(target=SCHEDULER.stop)  # Stop the scheduler in a separate thread
-    stop_thread.start()
+    pass
 
 
+'''
 def read_state():
     """
     Function to read state from a JSON file. 
@@ -43,8 +33,8 @@ def read_state():
         dict: A dictionary containing state variables.
     """
     try:
-        if JSON_FILE.stat().st_size > 0:
-            with open(JSON_FILE, 'r') as f:
+        if STATE_FILE.stat().st_size > 0:
+            with open(STATE_FILE, 'r') as f:
                 state = json.load(f)
                 return state
         else:
@@ -60,20 +50,9 @@ def write_state(state):
     Args:
         state (dict): A dictionary containing state variables.
     """
-    with open(JSON_FILE, 'w') as f:
+    with open(STATE_FILE, 'w') as f:
         json.dump(state, f)
 
-
-def get_uptime():
-    """
-    Function to get uptime from last known device uptime.
-
-    Returns:
-        str: Uptime in HH:MM:SS format if known, otherwise 'N/A'.
-    """
-    uptime_seconds = time.time() - app_start_time
-    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
-    return uptime_str
 
 
 def create_dg4202(args_dict: dict) -> DG4202:
@@ -87,7 +66,6 @@ def create_dg4202(args_dict: dict) -> DG4202:
     Returns:
         DG4202: A DG4202 device object.
     """
-    global dg4202_device
     state = read_state()
     if args_dict['hardware_mock']:
         if DG4202_MOCK_DEVICE.killed:
@@ -110,6 +88,19 @@ def create_dg4202(args_dict: dict) -> DG4202:
         state["dg4202_device"] = dg4202_device
         write_state(state)
         return dg4202_device
+'''
+
+
+def get_uptime():
+    """
+    Function to get uptime from last known device uptime.
+
+    Returns:
+        str: Uptime in HH:MM:SS format if known, otherwise 'N/A'.
+    """
+    uptime_seconds = time.time() - app_start_time
+    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+    return uptime_str
 
 
 def get_device_uptime(args_dict: dict):
@@ -122,7 +113,7 @@ def get_device_uptime(args_dict: dict):
     Returns:
         str: Uptime in HH:MM:SS format if known, otherwise 'N/A'.
     """
-    state = read_state()
+    state = state_manager.read_state()
     if state["last_known_device_uptime"]:
         uptime_seconds = time.time() - state["last_known_device_uptime"]
         uptime_str = str(timedelta(seconds=int(uptime_seconds)))

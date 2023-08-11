@@ -33,12 +33,12 @@ def main_callbacks(app: dash.Dash, args_dict: dict, pages: dict):
                   Output('device-status-indicator', 'children'),
                   Input('global-ticker', 'n_intervals'))
     def update_uptime(n):
-        if factory.create_dg4202(args_dict) is not None:
+        if factory.dg4202_manager.create_dg4202() is not None:
             indicator = [ON_INDICATOR]  # Green Badge for success
         else:
             indicator = [OFF_INDICATOR]  # Red Badge for failure
 
         app_uptime = [f"App Uptime : {factory.get_uptime()}"]
-        device_uptime = [f"Device Uptime : {factory.get_device_uptime(args_dict)}"]
+        device_uptime = [f"Device Uptime : {factory.dg4202_manager.get_device_uptime(args_dict)}"]
 
         return app_uptime, device_uptime, indicator

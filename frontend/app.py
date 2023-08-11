@@ -10,7 +10,17 @@ import waitress
 from callbacks import main_callbacks
 from werkzeug.serving import make_server
 import sys
+from features.state_managers import DG4202Manager, StateManager
+from features.scheduler import Scheduler
 # At the top of the script:
+
+
+def init_managers(args_dict: dict):
+    factory.state_manager = StateManager()
+    factory.dg4202_manager = DG4202Manager(factory.state_manager, args_dict=args_dict)
+    factory.DG4202SCHEDULER: Scheduler(function_map=factory.dg4202_manager.function_map,
+                                       interval=0.001)
+    factory.state_manager.write_state({'last_known_device_uptime': None})
 
 
 def create_app(args_dict: dict):
@@ -21,6 +31,7 @@ def create_app(args_dict: dict):
                         "content": "width=device-width, initial-scale=1"
                     }],
                     suppress_callback_exceptions=False)
+    init_managers(args_dict=args_dict)
     # Generate pages
     pages = {
         "Home": home.HomePage(app=app, args_dict=args_dict),
@@ -31,7 +42,6 @@ def create_app(args_dict: dict):
 
     app.scripts.config.serve_locally = True
     # Fresh start
-    factory.write_state({'last_known_device_uptime': None})
 
     sidebar_header = dbc.Row([
         dbc.Col(html.H2("pyrigol", className="display-4")),
@@ -116,8 +126,6 @@ def run_api_server(dg4202, server_port, stop_event):
     api.run()
 
 
-
-
 def signal_handler(signal, frame):
     print("Exit signal detected.")
     # Perform additional error handling actions here if needed
@@ -171,7 +179,7 @@ def run_application():
             # TODO create callback for interface refresh
             # Start the API server in another thread
             api_thread = threading.Thread(target=run_api_server,
-                                          args=(factory.create_dg4202(args_dict),
+                                          args=(factory.dg4202_manager.create_dg4202(),
                                                 args_dict['api_server'], stop_event))
             #api_thread.daemon = True
             threads.append(api_thread)
