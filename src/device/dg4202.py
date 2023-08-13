@@ -478,7 +478,7 @@ class DG4202MockInterface(DG4202Interface):
             self.state[command] = '1'
         elif command in [
                 "OUTPut1 OFF", "SOURce1:SWEEp:STATe OFF", "SOURce1:BURSt:STATe OFF",
-                "SOURce1:MOD:STATe OFF", "OUTPut2 OFF", "SOURce1:SWEEp:STATe OFF",
+                "SOURce1:MOD:STATe OFF", "OUTPut2 OFF", "SOURce2:SWEEp:STATe OFF",
                 "SOURce2:BURSt:STATe OFF", "SOURce2:MOD:STATe OFF"
         ]:
             command, value = command.split()

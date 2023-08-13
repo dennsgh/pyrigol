@@ -341,16 +341,16 @@ class DashboardPage(BasePage):
         """
 
         # Timer Modal
-        waveform_plot = sweep_plot = dcc.Graph(
-            id=f"waveform-plot-{channel}",
-            figure=plotter.plot_waveform(params=self.all_parameters[f"{channel}"]["waveform"],),
-            style={
-                "height": "250px",
-                "width": "400px",
-                "margin-left": "auto",
-                "margin-right": "auto",
-                "display": "block"
-            })  # Adjust the height to your desired value)
+        waveform_plot = dcc.Graph(id=f"waveform-plot-{channel}",
+                                  figure=plotter.plot_waveform(
+                                      params=self.all_parameters[f"{channel}"]["waveform"],),
+                                  style={
+                                      "height": "250px",
+                                      "width": "400px",
+                                      "margin-left": "auto",
+                                      "margin-right": "auto",
+                                      "display": "block"
+                                  })  # Adjust the height to your desired value)
 
         channel_row = dbc.Row(  # A Row that will hold two Columns
             [
