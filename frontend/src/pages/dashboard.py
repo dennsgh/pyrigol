@@ -84,7 +84,17 @@ class DashboardPage(BasePage):
                     },
                     "mode": {
                         "current_mode": "error",
-                        "parameters": {}
+                        "parameters": {
+                            "off": "",
+                            "sweep": {
+                                "FSTART": 0,
+                                "FSTOP": 0,
+                                "TIME": 0,
+                                "RTIME": 0,
+                            },
+                            "burst": "",
+                            "off": "",
+                        }
                     },
                     "output_status": "OFF"
                 }
