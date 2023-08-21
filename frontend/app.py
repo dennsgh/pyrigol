@@ -119,8 +119,9 @@ def create_app(args_dict: dict):
     return app
 
 
-def run_flask_app(app, host, port, stop_event):
-    flask_server = make_server(host, port, app.server)
+def run_flask_app(app: dash.Dash, args_dict):
+
+    flask_server = make_server('0.0.0.0', args_dict["port"], app.server)
     flask_server.serve_forever()
 
 
@@ -170,28 +171,9 @@ def run_application():
     if args_dict.get('env') == 'production':
         waitress.serve(app.server, host="0.0.0.0", port=args_dict['port'])
     else:
-        threads = []
-        # Start the Flask app in one thread
         print(f"Running Dash Application at http://localhost:{args_dict['port']}")
-        run_flask_app(app, '0.0.0.0', args_dict['port'], stop_event)
-        '''
-        flask_thread = threading.Thread(target=run_flask_app,
-                                        args=(app, '0.0.0.0', args_dict['port'], stop_event))
-        flask_thread.daemon = True
-        threads.append(flask_thread)
-        flask_thread.start()
-        if args_dict.get("api_server"):
-            print(f"Running DG4202 API server at http://localhost:{args_dict['api_server']}.")
-
-            # TODO create callback for interface refresh
-            # Start the API server in another thread
-            api_thread = threading.Thread(target=run_api_server,
-                                          args=(factory.dg4202_manager.create_dg4202(),
-                                                args_dict['api_server'], stop_event))
-            #api_thread.daemon = True
-            threads.append(api_thread)
-            api_thread.start()
-        '''
+        #run_flask_app(app, args_dict)
+        app.run(host='0.0.0.0', port=args_dict["port"], debug=args_dict["debug"])
 
 
 # set up signal handler

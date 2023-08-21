@@ -579,6 +579,7 @@ class DashboardPage(BasePage):
             else:
                 return dash.no_update, dash.no_update
 
+        # These are per channel callbacks! hence the loop.
         for channel in range(1, self.channel_count + 1):
             self.app.callback(
                 Output(f"debug-default-{channel}", "children"),
@@ -641,29 +642,6 @@ class DashboardPage(BasePage):
                 return ["Device Connected"]
             else:
                 return ["Device Not Found."]
-
-        @self.app.callback(
-            Output("connect-fail-dummy", "children"),
-            Input("connect-rigol", "n_clicks"),
-        )
-        def reconnect(connect_n_clicks: int):
-            """
-            Reconnect to the device when the connect button is clicked.
-
-            Parameters:
-                connect_n_clicks (int): The number of clicks on the connect button.
-
-            Returns:
-                list: A list containing the connection status message.
-            """
-
-            if self.reconnect():
-                print("Reconnected.")
-                # do not modify page_layout directly
-                return ["Device found. Please refresh the page."]
-            else:
-                return [f"Check the connection. [{datetime.now().isoformat()}]"]
-                # Callback for link channels button
 
         @self.app.callback(
             Output("link-status", "children"),
