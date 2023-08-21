@@ -10,7 +10,7 @@ import waitress
 from callbacks import main_callbacks
 from werkzeug.serving import make_server
 import sys
-from features.state_managers import DG4202Manager, StateManager
+from features.state_managers import DG4202Manager, StateManager, DG4202APIManager
 from features.scheduler import Scheduler
 # At the top of the script:
 
@@ -21,6 +21,10 @@ def init_managers(args_dict: dict):
     factory.DG4202SCHEDULER: Scheduler(function_map=factory.dg4202_manager.function_map,
                                        interval=0.001)
     factory.state_manager.write_state({'last_known_device_uptime': None})
+    if args_dict.get("api_server"):
+        factory.api_manager = DG4202APIManager(dg4202_manager=factory.dg4202_manager,
+                                               args_dict=args_dict)
+        factory.api_manager.start()
 
 
 def create_app(args_dict: dict):
@@ -129,6 +133,7 @@ def run_api_server(dg4202, server_port, stop_event):
 def signal_handler(signal, frame):
     print("Exit signal detected.")
     # Perform additional error handling actions here if needed
+    factory.api_manager.stop()
     sys.exit(0)
 
 
@@ -168,9 +173,11 @@ def run_application():
         threads = []
         # Start the Flask app in one thread
         print(f"Running Dash Application at http://localhost:{args_dict['port']}")
+        run_flask_app(app, '0.0.0.0', args_dict['port'], stop_event)
+        '''
         flask_thread = threading.Thread(target=run_flask_app,
                                         args=(app, '0.0.0.0', args_dict['port'], stop_event))
-        #flask_thread.daemon = True
+        flask_thread.daemon = True
         threads.append(flask_thread)
         flask_thread.start()
         if args_dict.get("api_server"):
@@ -184,6 +191,7 @@ def run_application():
             #api_thread.daemon = True
             threads.append(api_thread)
             api_thread.start()
+        '''
 
 
 # set up signal handler

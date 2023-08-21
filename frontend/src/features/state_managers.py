@@ -1,5 +1,6 @@
 import json
 from device.dg4202 import DG4202, DG4202Detector, DG4202Mock
+from api.dg4202_api import DG4202APIServer
 from datetime import datetime, timedelta
 import time
 from features.scheduler import Scheduler, FunctionMap
@@ -141,3 +142,27 @@ class DG4202Manager:
             return uptime_str
         else:
             return "N/A"
+
+
+class DG4202APIManager:
+
+    def __init__(self, dg4202_manager: DG4202Manager, args_dict: dict):
+        self.args_dict = args_dict
+        self.dg4202_manager = dg4202_manager
+        self.api_server = DG4202APIServer(dg4202=self.dg4202_manager.create_dg4202(),
+                                          server_port=args_dict['api_server'])
+
+    def refresh(self):
+        self.api_server = DG4202APIServer(dg4202=self.dg4202_manager.create_dg4202(),
+                                          server_port=self.args_dict['api_server'])
+
+    def start(self):
+        # Your function to start the API server
+        if self.dg4202_manager.dg4202_device is not None:
+            self.api_server.run()
+            print(f"Running DG4202 API server at http://localhost:{self.args_dict['api_server']}.")
+        else:
+            print("[API] Device not found!")
+
+    def stop(self):
+        self.api_server.shutdown()
