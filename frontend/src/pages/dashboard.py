@@ -31,15 +31,6 @@ class DashboardPage(BasePage):
     # This dictionary will indirectly control the content based on mode
     all_parameters = {}
     transition = False
-    error_layout = html.Div([
-        dbc.Col([
-            html.H1("Connection Error"),
-            html.H2("", id='connect-fail-dummy'),
-            ticker,
-            create_button(id=f"connect-rigol", label=f"Detect"),
-        ])
-    ],
-                            id='error-layout')
     content = []
 
     def __init__(self, *args, **kwargs):
